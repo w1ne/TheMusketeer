@@ -14,11 +14,17 @@ Enforcement: work is considered invalid unless the lock directory exists for tha
 
 ---
 
-## Task 1: Sample Task
+## Tasks
+
+Add tasks below using this template:
+
+```
+## Task <id>: <title>
 Status: unclaimed
 Scope:
-- Replace this with real work items.
+- ...
 Primary files:
-- `path/to/file`
+- ...
 Acceptance:
-- Replace this with testable acceptance criteria.
+- ...
+```
