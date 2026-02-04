@@ -62,3 +62,15 @@ Use this repo as a submodule and keep **tasks and reports local** to the target 
    ```bash
    git submodule update --remote --merge
    ```
+
+## Bootstrap in Another Repo (Script)
+
+After adding the submodule, run:
+
+```bash
+tools/thepuppeteer/tools/bootstrap_repo.sh
+```
+
+Optional flags:
+- `--target <repo-root>`
+- `--force` (overwrite existing task files)
