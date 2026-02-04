@@ -7,9 +7,10 @@ Usage: $0 [--target <repo-root>] [--force]
 
 Bootstraps task workflow files into the target repo:
 - docs/AGENT_TASKS.md
-- docs/AGENT_REPORTS.md
+- docs/AGENT_REPORTS.md (generated index)
 - docs/claims/README.md
 - docs/claims/.gitignore
+- docs/agent_reports/
 
 If --target is not provided, the current git repo root is used.
 USAGE
@@ -61,8 +62,9 @@ REPORTS_DST="${TARGET}/docs/AGENT_REPORTS.md"
 CLAIMS_DIR="${TARGET}/docs/claims"
 CLAIMS_README_DST="${CLAIMS_DIR}/README.md"
 CLAIMS_GITIGNORE_DST="${CLAIMS_DIR}/.gitignore"
+REPORTS_DIR="${TARGET}/docs/agent_reports"
 
-mkdir -p "${TARGET}/docs" "${CLAIMS_DIR}"
+mkdir -p "${TARGET}/docs" "${CLAIMS_DIR}" "${REPORTS_DIR}"
 
 copy_file() {
   local src="$1"
@@ -86,9 +88,7 @@ else
   echo "Wrote: ${CLAIMS_GITIGNORE_DST}"
 fi
 
-cat <<DONE
-Bootstrap complete.
-- Tasks: ${TASKS_DST}
-- Reports: ${REPORTS_DST}
-- Claims: ${CLAIMS_DIR}
-DONE
+# Generate index in target repo
+"${PUPPETEER_ROOT}/tools/generate_reports_index.sh" --target "${TARGET}" >/dev/null
+
+echo "Bootstrap complete."

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TASKS_FILE="docs/AGENT_TASKS.md"
-REPORTS_FILE="docs/AGENT_REPORTS.md"
+REPORTS_DIR="docs/agent_reports"
 CLAIMS_DIR="docs/claims"
 
 if [ ! -f "${TASKS_FILE}" ]; then
@@ -15,20 +15,16 @@ if [ ! -d "${CLAIMS_DIR}" ]; then
   exit 1
 fi
 
+mkdir -p "${REPORTS_DIR}"
+
 errors=0
 
-check_report_in_progress() {
+has_in_progress_report() {
   local id="$1"
-  if [ ! -f "${REPORTS_FILE}" ]; then
-    return 1
+  if compgen -G "${REPORTS_DIR}/*_task-${id}_*start.md" > /dev/null; then
+    return 0
   fi
-  awk -v id="${id}" '
-    BEGIN { found=0; in_section=0; }
-    $0 ~ "^## Task: " id " " { in_section=1; }
-    $0 ~ "^## Task: " && $0 !~ "^## Task: " id " " { in_section=0; }
-    in_section && $0 ~ "^Status: in progress" { found=1; }
-    END { exit(found ? 0 : 1); }
-  ' "${REPORTS_FILE}"
+  return 1
 }
 
 while IFS='|' read -r id status title; do
@@ -40,13 +36,13 @@ while IFS='|' read -r id status title; do
       continue
     fi
     owner="$(awk -F= '/claimed_by=/{print $2}' "${lock}")"
-    status_owner="$(printf "%s" "${status}" | sed -E 's/^claimed by ([^ ]+).*/\\1/')"
+    status_owner="$(printf "%s" "${status}" | sed -E 's/^claimed by ([^ ]+).*/\1/')"
     if [ -n "${owner}" ] && [ "${owner}" != "${status_owner}" ]; then
       echo "ERROR: Task ${id} owner mismatch. Status=${status_owner}, Lock=${owner}"
       errors=$((errors + 1))
     fi
-    if ! check_report_in_progress "${id}"; then
-      echo "ERROR: Task ${id} claimed but no 'in progress' report found."
+    if ! has_in_progress_report "${id}"; then
+      echo "ERROR: Task ${id} claimed but no in-progress report file found."
       errors=$((errors + 1))
     fi
   else

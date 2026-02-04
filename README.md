@@ -9,7 +9,7 @@ A tiny, file‑based task mutex system for coordinating multiple agents.
    ```bash
    tools/claim_task.sh <task-id> <name>
    ```
-3. Agents log progress in `docs/AGENT_REPORTS.md`.
+3. Reports are written to `docs/agent_reports/` (one file per report).
 4. When done:
    ```bash
    tools/complete_task.sh <task-id> <name>
@@ -41,14 +41,14 @@ Use this repo as a submodule and keep **tasks and reports local** to the target 
    git submodule update --init --recursive
    ```
 
-2. Copy templates into your repo (each repo owns its own task/status files):
+2. Bootstrap task files into your repo:
    ```bash
-   cp tools/thepuppeteer/docs/AGENT_TASKS.md docs/AGENT_TASKS.md
-   cp tools/thepuppeteer/docs/AGENT_REPORTS.md docs/AGENT_REPORTS.md
-   mkdir -p docs/claims
-   cp tools/thepuppeteer/docs/claims/README.md docs/claims/README.md
-   printf "task-*.lock/\n" > docs/claims/.gitignore
+   tools/thepuppeteer/tools/bootstrap_repo.sh
    ```
+
+Optional flags:
+- `--target <repo-root>`
+- `--force` (overwrite existing files)
 
 3. Use the scripts via the submodule path:
    ```bash
@@ -56,21 +56,10 @@ Use this repo as a submodule and keep **tasks and reports local** to the target 
    tools/thepuppeteer/tools/complete_task.sh <task-id> <name>
    tools/thepuppeteer/tools/task_status.sh
    tools/thepuppeteer/tools/validate_tasks.sh
+   tools/thepuppeteer/tools/generate_reports_index.sh
    ```
 
 4. Update the submodule when you want new tooling:
    ```bash
    git submodule update --remote --merge
    ```
-
-## Bootstrap in Another Repo (Script)
-
-After adding the submodule, run:
-
-```bash
-tools/thepuppeteer/tools/bootstrap_repo.sh
-```
-
-Optional flags:
-- `--target <repo-root>`
-- `--force` (overwrite existing task files)
