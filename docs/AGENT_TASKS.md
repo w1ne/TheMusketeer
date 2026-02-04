@@ -12,6 +12,14 @@ Claiming rules (mutex enforced):
 
 Enforcement: work is considered invalid unless the lock directory exists for that task.
 
+Adding tasks (for coordinators/agents):
+1. Add new tasks at the end of this file to avoid merge conflicts.
+2. Use the template below and increment the task ID (next unused number).
+3. Set `Status:` to `unclaimed`.
+4. Include scope, primary files, and acceptance criteria.
+5. Do not create or edit lock files when adding tasks.
+
+
 ---
 
 ## Tasks
