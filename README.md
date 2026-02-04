@@ -20,3 +20,13 @@ A tiny, file‑based task mutex system for coordinating multiple agents.
    ```
 
 Locks are enforced via `docs/claims/task-<id>.lock/`.
+
+Check current claims:
+```bash
+tools/task_status.sh
+```
+
+Sanity-check claims and reports:
+```bash
+tools/validate_tasks.sh
+```

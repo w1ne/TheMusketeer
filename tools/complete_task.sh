@@ -41,4 +41,23 @@ awk -v id="${TASK_ID}" -v name="${NAME}" -v date="${DATE}" '
   {print}
 ' docs/AGENT_TASKS.md > /tmp/AGENT_TASKS.md && mv /tmp/AGENT_TASKS.md docs/AGENT_TASKS.md
 
- echo "Marked task ${TASK_ID} as done by ${NAME}."
+REPORTS_FILE="docs/AGENT_REPORTS.md"
+if [ ! -f "${REPORTS_FILE}" ]; then
+  printf "# Agent Reports\n\n" > "${REPORTS_FILE}"
+fi
+TITLE="$(awk -v id="${TASK_ID}" '$0 ~ "^## Task " id ":" {sub(/^## Task [0-9]+: /, "", $0); print; exit}' docs/AGENT_TASKS.md)"
+{
+  echo "## Task: ${TASK_ID} - ${TITLE}"
+  echo "Status: done"
+  echo "Summary:"
+  echo "- Completed by ${NAME} (${DATE})"
+  echo "Files:"
+  echo "- ..."
+  echo "Tests:"
+  echo "- ..."
+  echo "Follow-ups:"
+  echo "- ..."
+  echo ""
+} >> "${REPORTS_FILE}"
+
+echo "Marked task ${TASK_ID} as done by ${NAME}."
