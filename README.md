@@ -69,4 +69,4 @@ What we want
 - feedabck of agents, conrol panel with color coding.
 - automatic report on stuck agents/uncomplete tasks.
 - more rubuts mechanism on taking taksks, and garabage collectors of taks whih where finished but not relesed th lock. Tasks should have some kind of timeout and agents should be able to speak to each other.
-- how to sync agents beayoind one machine.
+- how to sync agents beayoind one machine, we wan to have several agents warking in the same rpo, communicating.
