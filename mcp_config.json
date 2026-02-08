@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN_HERE>"
+      }
+    },
+    "testsprite": {
+      "command": "python3",
+      "args": ["-m", "testsprite.mcp"]
+    },
+    "deployment": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-vercel"]
+    }
+  }
+}

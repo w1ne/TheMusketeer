@@ -1,72 +1,86 @@
-# thepuppeteer
+# Google Antigravity Vibe Kanban
 
-A tiny, file‑based task mutex system for coordinating multiple agents.
+A Lean Framework for Accelerated Agentic Delivery.
 
-## Quick start
+This repository implements the "Vibe Kanban" methodology for high-velocity AI-driven development. It replaces complex permission hierarchies with parallel agent execution and automated verification.
 
-1. Add tasks to `docs/AGENT_TASKS.md`.
-2. Agents claim with:
-   ```bash
-   tools/claim_task.sh <task-id> <name>
-   ```
-3. Reports are written to `docs/agent_reports/` (one file per report).
-4. When done:
-   ```bash
-   tools/complete_task.sh <task-id> <name>
-   ```
-5. View status:
-   ```bash
-   tools/task_status.sh
-   ```
+## Core Philosophy
 
-Locks are enforced via `docs/claims/task-<id>.lock/`.
+1.  **Parallel Execution**: Treat agents as a swarm of parallel workers. Spawn multiple agents simultaneously for distinct tasks.
+2.  **Test-Driven Development (TDD)**: Agents typically cannot write implementation code until a failing test exists.
+3.  **Automated Verification**: Use automated tests (TestSprite/Playwright) to validate changes.
+4.  **Lean Context**: Use `.agent/CODEBASE_MAP.md` as the single source of truth for repository structure and constraints.
 
-Check current claims:
+## Prerequisites
+
+To fully leverage this framework, ensure you have the following MCP servers configured:
+
+1.  **GitHub MCP**: For repository control and branch management.
+2.  **TestSprite / Playwright MCP**: For running headless browser tests and validation.
+
+## Workflow
+
+### 1. Task Definition
+
+Break down features into small, atomic units of work. Avoid large, monolithic tasks.
+
+### 2. Parallel Agent Spawning (Vibe Kanban)
+
+Use the Antigravity Manager Surface to spawn separate agents for each task.
+
+### 3. Execution Cycle
+
+For each agent/task:
+
+1.  **Checkout Branch**: Create a new branch `agent/<task-id>`.
+2.  **Red Phase**: Create a failing test case that reproduces the bug or defines the feature.
+3.  **Green Phase**: Implement the code to pass the test.
+4.  **Refactor**: Optimize the code while keeping tests green.
+5.  **Pull Request**: Open a PR for review.
+
+### 4. Turbo Mode
+
+Enable **Turbo Mode** for trusted directories to automate terminal commands (e.g., `npm install`, `git commit`) without constant confirmation.
+
+## Directory Structure
+
+- `.agent/CODEBASE_MAP.md`: High-level map of the codebase.
+- `docs/`: Documentation.
+- `README.md`: This file.
+
+## Installation & Usage
+
+### Method 1: NPX (Recommended for quick use)
+
+Run the tool directly without installation:
+
 ```bash
-tools/task_status.sh
+npx thepuppeteer
 ```
 
-Sanity-check claims and reports:
+### Method 2: Global Install
+
+Install it globally via npm:
+
 ```bash
-tools/validate_tasks.sh
+npm install -g thepuppeteer
+thepuppeteer
 ```
 
-## Bootstrap in Another Repo
+### Method 3: Docker
 
-Use this repo as a submodule and keep **tasks and reports local** to the target repo.
+Run via Docker to avoid environment issues:
 
-1. Add the submodule:
-   ```bash
-   git submodule add git@github.com:w1ne/thepuppeteer.git tools/thepuppeteer
-   git submodule update --init --recursive
-   ```
+```bash
+# Build the image
+docker build -t thepuppeteer .
 
-2. Bootstrap task files into your repo:
-   ```bash
-   tools/thepuppeteer/tools/bootstrap_repo.sh
-   ```
+# Run the container
+docker run -it thepuppeteer
+```
 
-Optional flags:
-- `--target <repo-root>`
-- `--force` (overwrite existing files)
+## Getting Started
 
-3. Use the scripts via the submodule path:
-   ```bash
-   tools/thepuppeteer/tools/claim_task.sh <task-id> <name>
-   tools/thepuppeteer/tools/complete_task.sh <task-id> <name>
-   tools/thepuppeteer/tools/task_status.sh
-   tools/thepuppeteer/tools/validate_tasks.sh
-   tools/thepuppeteer/tools/generate_reports_index.sh
-   ```
-
-4. Update the submodule when you want new tooling:
-   ```bash
-   git submodule update --remote --merge
-   ```
-
---------------------
-What we want
-- feedabck of agents, conrol panel with color coding.
-- automatic report on stuck agents/uncomplete tasks.
-- more rubuts mechanism on taking taksks, and garabage collectors of taks whih where finished but not relesed th lock. Tasks should have some kind of timeout and agents should be able to speak to each other.
-- how to sync agents beayoind one machine, we wan to have several agents warking in the same rpo, communicating.
+1.  Review `.agent/CODEBASE_MAP.md` to understand the project structure.
+2.  Define your tasks.
+3.  Start spawning agents!
