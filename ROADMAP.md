@@ -1,22 +1,31 @@
 # Roadmap
 
-This document outlines the high-level goals and planned features for `thepuppeteer`.
+## Phase 1: Foundation (Completed)
 
-## Phase 1: Foundation (Current)
+- [x] **Project Structure**: Best practices (Linting, TypeScript, CI/CD).
+- [x] **Framework**: Vibe Kanban adoption.
+- [x] **Full-Stack Setup**: Backend (Express) + Frontend (React).
+- [x] **Deployment**: Docker & CLI.
 
-- [x] Establish "Vibe Kanban" structure (`.agent/`, `docs/`).
-- [x] Setup TypeScript/Node.js environment.
-- [x] Configure CI/CD and Linting.
-- [ ] Implement core Agentic communication protocol.
+## Phase 2: Core Features (Completed)
 
-## Phase 2: Core Features
+- [x] **Domain Logic**: Agents, Tasks, Kanban Board (In-Memory).
+- [x] **API Integration**: Real CRUD endpoints.
+- [x] **CLI**: Interactive commands.
 
-- [ ] **Agent Integration**: Build the core `Agent` class in `src/agent.ts`.
-- [ ] **Task Manager**: Implement the Kanban board logic.
-- [ ] **CLI Tool**: Create a CLI for managing agents and tasks.
+## Phase 3: Persistent Memory (Completed)
 
-## Phase 3: Advanced Capabilities
+- [x] **OpenClaW Architecture**: Markdown-based memory (`MEMORY.md`, Daily Logs).
+- [x] **Integration**: Connect Agents to MemoryStore via API.
+- [x] **CLI**: Memory commands (`log`, `learn`, `show`).
 
-- [ ] **Web Dashboard**: React-based UI for visualizing agent workflow.
-- [ ] **Multi-Repo Support**: Enable agents to work across multiple repositories.
-- [ ] **Cloud Integration**: Connect with Google Cloud Vertex AI.
+## Phase 4: Advanced Task Manager (Completed)
+
+- [x] **Priorities**: High/Medium/Low task priority.
+- [x] **Dependencies**: Task blocking support.
+- [x] **Sub-tasks**: Hierarchical task support.
+
+## Phase 5: Intelligence (Planned)
+
+- [ ] **Agent Integration**: Connect with "Trinity" (GitHub, TestSprite, Deployment).
+- [ ] **LLM Integration**: Connect agents to LLMs for autonomous execution.

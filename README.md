@@ -48,35 +48,50 @@ Enable **Turbo Mode** for trusted directories to automate terminal commands (e.g
 - `docs/`: Documentation.
 - `README.md`: This file.
 
-## Installation & Usage
+## Usage
 
-### Method 1: NPX (Recommended for quick use)
-
-Run the tool directly without installation:
+### 1. Start the Server
 
 ```bash
-npx thepuppeteer
+npm run start:server
 ```
 
-### Method 2: Global Install
+### 2. Use the CLI
 
-Install it globally via npm:
+Open a new terminal to interact with your agents.
+
+**Core Commands:**
 
 ```bash
-npm install -g thepuppeteer
-thepuppeteer
+# Create Tasks
+npx thepuppeteer task:create "Fix Login Bug" HIGH
+npx thepuppeteer task:create "Update Docs" LOW
+
+# Create Dependencies
+npx thepuppeteer task:create "Release" MEDIUM
+npx thepuppeteer task:depends <ReleaseID> <FixLoginBugID>
+
+# Spawn Agents
+npx thepuppeteer agent:spawn "Dev-Bot-1"
 ```
 
-### Method 3: Docker
-
-Run via Docker to avoid environment issues:
+**Memory Commands (OpenClaW-style):**
 
 ```bash
-# Build the image
-docker build -t thepuppeteer .
+# Log Activity (Ephemeral)
+npx thepuppeteer memory:log "Debugged login issue"
 
-# Run the container
-docker run -it thepuppeteer
+# Add Knowledge (Durable)
+npx thepuppeteer memory:learn "User prefers dark mode"
+
+# View Memory
+npx thepuppeteer memory:show
+```
+
+### 3. Check Status
+
+```bash
+npx thepuppeteer status
 ```
 
 ## Getting Started
