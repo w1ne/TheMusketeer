@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
@@ -7,9 +7,16 @@ import { board } from '../core/KanbanBoard';
 import { memory } from '../core/MemoryStore';
 import { AgentLoop } from '../core/AgentLoop';
 import { mcpManager } from '../core/mcp/MCPManager';
+import { UserAccountManager } from '@google/gemini-cli-core';
+import fs from 'fs/promises';
+import { workspaceManager } from '../core/WorkspaceManager';
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(cors());
+app.use(helmet());
 
 // Initialize MCP
 const mcpConfigPath = path.resolve(process.cwd(), '.agent/mcp.json');
@@ -17,14 +24,10 @@ mcpManager.loadConfig(mcpConfigPath).then(() => {
   console.log('MCP Managers Initialized');
 });
 
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
-
 // Map to store active loops
 const activeLoops: Map<string, AgentLoop> = new Map();
 
-// --- Auth Store (In-Memory for Demo) ---
+// --- Auth Store (Synced with Gemini CLI) ---
 interface User {
   name: string;
   email: string;
@@ -40,24 +43,109 @@ const userStore = {
     if (!this.activeEmail) return null;
     return this.users.get(this.activeEmail) || null;
   },
+
+  syncWithAntigravity(): boolean {
+    try {
+      const os = require('os');
+      const fs = require('fs');
+      const vscdbPath = path.join(
+        os.homedir(),
+        '.config/Antigravity/User/globalStorage/state.vscdb',
+      );
+      if (!fs.existsSync(vscdbPath)) return false;
+
+      const buffer = fs.readFileSync(vscdbPath);
+      const content = buffer.toString('binary');
+
+      const emailMatch = content.match(/[a-zA-Z0-9._%+-]+@gmail\.com/);
+      const nameMatch = content.match(/"name":"(.*?)"/);
+      const marker = 'antigravityAuthStatus';
+      const start = content.indexOf(marker);
+      let apiKey = '';
+
+      if (start !== -1) {
+        const slice = content.substring(start, start + 2000);
+        const apiMatch = slice.match(/"apiKey":"(.*?)"/);
+        if (apiMatch) apiKey = apiMatch[1];
+      }
+
+      if (emailMatch) {
+        const email = emailMatch[0];
+        let name = 'Antigravity User';
+        if (nameMatch && !nameMatch[1].includes('Source Control')) {
+          name = nameMatch[1];
+        }
+        console.log(
+          `[Auth] Inherited Antigravity Identity: ${name} (${email})`,
+        );
+
+        const user: User = {
+          name,
+          email,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+          apiKey: apiKey,
+        };
+        this.users.set(email, user);
+        this.activeEmail = email;
+        return true;
+      }
+    } catch (e: any) {
+      console.warn('[Auth] Antigravity sync skipped:', e.message);
+    }
+    return false;
+  },
+
+  syncWithGeminiCLI() {
+    if (this.syncWithAntigravity()) return;
+
+    try {
+      const manager = new UserAccountManager();
+      const email = manager.getCachedGoogleAccount();
+
+      if (email) {
+        console.log(`[Auth] Syncing with Gemini CLI: ${email}`);
+        const name = email
+          .split('@')[0]
+          .replace(/[^a-zA-Z]/g, ' ')
+          .toUpperCase();
+        const user: User = {
+          name: name || 'Google User',
+          email: email,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+          apiKey: '',
+        };
+        this.users.set(email, user);
+        this.activeEmail = email;
+      } else {
+        this.setupGuest();
+      }
+    } catch (error) {
+      this.setupGuest();
+    }
+  },
+
+  setupGuest() {
+    console.log('[Auth] Defaulting to Guest Mode.');
+    const guestUser: User = {
+      name: 'Guest User',
+      email: 'guest@example.com',
+      avatar: 'https://ui-avatars.com/api/?name=Guest+User',
+      apiKey: '',
+    };
+    this.users.set(guestUser.email, guestUser);
+    this.activeEmail = guestUser.email;
+  },
 };
 
-// Initialize with a guest
-const guestUser: User = {
-  name: 'Guest User',
-  email: 'guest@example.com',
-  avatar: 'https://ui-avatars.com/api/?name=Guest+User',
-  apiKey: '',
-};
-userStore.users.set(guestUser.email, guestUser);
-userStore.activeEmail = guestUser.email;
+// Initialize identities
+userStore.syncWithGeminiCLI();
 
 // ... (API Documentation update skipped to avoid huge diff, assume docs are "good enough" for demo)
 
 // ...
 
 // --- Auth ---
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', (req: Request, res: Response) => {
   const { name, email, key } = req.body;
   if (name && email) {
     const newUser: User = {
@@ -76,7 +164,7 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ status: 'ok', user: active });
 });
 
-app.post('/api/auth/switch', (req, res) => {
+app.post('/api/auth/switch', (req: Request, res: Response) => {
   const { email } = req.body;
   if (!email || !userStore.users.has(email)) {
     return res.status(400).json({ error: 'User not found' });
@@ -85,22 +173,22 @@ app.post('/api/auth/switch', (req, res) => {
   res.json({ status: 'ok', user: userStore.getActiveUser() });
 });
 
-app.get('/api/user', (req, res) => {
+app.get('/api/user', (req: Request, res: Response) => {
   const active = userStore.getActiveUser();
-  res.json(active || guestUser);
+  res.json(active);
 });
 
-app.get('/api/users', (req, res) => {
+app.get('/api/users', (req: Request, res: Response) => {
   const users = Array.from(userStore.users.values());
   res.json(users);
 });
 
 // --- Agents ---
-app.get('/api/agents', (req, res) => {
+app.get('/api/agents', (req: Request, res: Response) => {
   res.json(board.getAgents());
 });
 
-app.post('/api/agents', (req, res) => {
+app.post('/api/agents', (req: Request, res: Response) => {
   const { name, provider, model, apiKey } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Name is required' });
@@ -113,7 +201,7 @@ app.post('/api/agents', (req, res) => {
   res.status(201).json(agent);
 });
 
-app.post('/api/agents/:id/start', async (req, res) => {
+app.post('/api/agents/:id/start', async (req: Request, res: Response) => {
   const { id } = req.params;
   const agent = board.getAgent(id);
 
@@ -136,7 +224,7 @@ app.post('/api/agents/:id/start', async (req, res) => {
   res.json({ status: 'Agent loop started', agentId: id });
 });
 
-app.post('/api/agents/:id/stop', async (req, res) => {
+app.post('/api/agents/:id/stop', async (req: Request, res: Response) => {
   const { id } = req.params;
   const loop = activeLoops.get(id);
 
@@ -150,12 +238,42 @@ app.post('/api/agents/:id/stop', async (req, res) => {
   res.json({ status: 'Agent loop stopped', agentId: id });
 });
 
+app.post('/api/agents/:id/input', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { input } = req.body;
+  if (!input) {
+    return res.status(400).json({ error: 'Input is required' });
+  }
+  const agent = board.getAgent(id);
+  if (!agent) {
+    return res.status(404).json({ error: 'Agent not found' });
+  }
+  board.setAgentInput(id, input);
+  res.json({ status: 'ok', agentId: id });
+});
+
+app.get('/api/agents/:id/files', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const agent = board.getAgent(id);
+  if (!agent) {
+    return res.status(404).json({ error: 'Agent not found' });
+  }
+
+  try {
+    const workspaceRoot = workspaceManager.getWorkspaceRoot(id);
+    const files = await fs.readdir(workspaceRoot, { recursive: true });
+    res.json(files);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list workspace files' });
+  }
+});
+
 // --- Tasks ---
-app.get('/api/tasks', (req, res) => {
+app.get('/api/tasks', (req: Request, res: Response) => {
   res.json(board.getTasks());
 });
 
-app.post('/api/tasks', (req, res) => {
+app.post('/api/tasks', (req: Request, res: Response) => {
   const { title, priority, parentId } = req.body;
   if (!title) {
     return res.status(400).json({ error: 'Title is required' });
@@ -164,7 +282,7 @@ app.post('/api/tasks', (req, res) => {
   res.status(201).json(task);
 });
 
-app.put('/api/tasks/:id', (req, res) => {
+app.put('/api/tasks/:id', (req: Request, res: Response) => {
   const { id } = req.params;
   const { status, dependencyId } = req.body;
 
@@ -189,7 +307,7 @@ app.put('/api/tasks/:id', (req, res) => {
 });
 
 // --- Memory ---
-app.get('/api/memory/logs', async (req, res) => {
+app.get('/api/memory/logs', async (req: Request, res: Response) => {
   try {
     const logs = await memory.getRecentLogs(7);
     res.json(logs);
@@ -198,7 +316,7 @@ app.get('/api/memory/logs', async (req, res) => {
   }
 });
 
-app.post('/api/memory/logs', async (req, res) => {
+app.post('/api/memory/logs', async (req: Request, res: Response) => {
   const { content, agentId } = req.body;
   if (!content || !agentId) {
     return res.status(400).json({ error: 'Content and AgentID form required' });
@@ -211,7 +329,7 @@ app.post('/api/memory/logs', async (req, res) => {
   }
 });
 
-app.get('/api/memory/knowledge', async (req, res) => {
+app.get('/api/memory/knowledge', async (req: Request, res: Response) => {
   try {
     const knowledge = await memory.getKnowledge();
     res.json({ content: knowledge });
@@ -220,7 +338,7 @@ app.get('/api/memory/knowledge', async (req, res) => {
   }
 });
 
-app.post('/api/memory/knowledge', async (req, res) => {
+app.post('/api/memory/knowledge', async (req: Request, res: Response) => {
   const { content } = req.body;
   if (!content) {
     return res.status(400).json({ error: 'Content is required' });

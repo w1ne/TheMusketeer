@@ -60,3 +60,17 @@ export async function switchUser(email: string) {
     body: JSON.stringify({ email }),
   });
 }
+
+export async function sendAgentInput(id: string, input: string) {
+  const res = await fetch(`${API_URL}/agents/${id}/input`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input }),
+  });
+  return res.json();
+}
+
+export async function fetchAgentFiles(id: string) {
+  const res = await fetch(`${API_URL}/agents/${id}/files`);
+  return res.json();
+}

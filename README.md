@@ -120,10 +120,23 @@ This command starts both the **Neural Backend** and the **Web Dashboard** concur
 
 ### 2. Interact via CLI
 
-```bash
-# Authenticate (Select Gemini CLI for the pro experience)
-npx themusketeer auth:login
+Open a new terminal to interact with your agents or authenticate.
 
+### Authentication (Optional)
+
+The Musketeer seamlessly integrates with the Google Gemini CLI.
+
+1.  **Guest Mode**: By default, you'll be logged in as "Guest User".
+2.  **Login**: To sync your Google identity, run:
+    ```bash
+    npx ts-node src/cli.ts auth:login
+    ```
+    Follow the on-screen instructions to get your Client ID and Secret.
+3.  **Auto-Sync**: Once properly authenticated, the dashboard will automatically detect your profile on next server start.
+
+## 🤝 Contributing
+
+```bash
 # Spawn a Musketeer
 npx themusketeer agent:spawn Athos
 

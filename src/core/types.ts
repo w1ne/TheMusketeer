@@ -1,5 +1,5 @@
-export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
-export type AgentStatus = 'IDLE' | 'WORKING';
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'AWAITING_INPUT';
+export type AgentStatus = 'IDLE' | 'WORKING' | 'PAUSED' | 'ERROR';
 export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface Task {
@@ -15,6 +15,9 @@ export interface Task {
   // Hierarchy
   parentId?: string;
   subtasks: string[];
+
+  // Detailed Status
+  statusMessage?: string; // e.g. "Waiting for approval on branch agent/x"
 }
 
 export interface AgentConfig {
@@ -29,4 +32,6 @@ export interface Agent {
   status: AgentStatus;
   config: AgentConfig;
   currentTaskId?: string;
+  currentActivity?: string; // e.g. "Analyzing project structure..."
+  pendingInput?: string; // User message waiting for the agent
 }

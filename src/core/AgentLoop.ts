@@ -2,6 +2,7 @@ import { board } from './KanbanBoard';
 import { memory } from './MemoryStore';
 import { llm, LLMMessage } from './llm/LLMService';
 import { tools } from './tools/ToolRegistry';
+import { workspaceManager } from './WorkspaceManager';
 
 export class AgentLoop {
   private agentId: string;
@@ -19,6 +20,11 @@ export class AgentLoop {
     }
 
     console.log(`Starting loop for agent: ${agent.name} (${agent.id})`);
+
+    // 0. Initialize Workspace
+    const workspaceRoot = await workspaceManager.createWorkspace(this.agentId);
+    console.log(`[Loop] Workspace created: ${workspaceRoot}`);
+
     this.isRunning = true;
 
     while (this.isRunning) {
@@ -28,14 +34,16 @@ export class AgentLoop {
       if (!currentAgent) break; // Agent deleted?
 
       if (currentAgent.status === 'IDLE') {
-        // Try to get a task
+        board.updateAgentActivity(this.agentId, 'Waiting for new tasks...');
         const task = board.assignNextTask(this.agentId);
         if (task) {
           console.log(`[Loop] Picked up task: ${task.title}`);
-          await memory.addLog(`Picked up task: ${task.title}`, this.agentId);
+          await memory.addLog(
+            `### 🚀 Task Initiative\n**Mission:** ${task.title}\nAgent is initializing the workspace.`,
+            this.agentId,
+          );
         } else {
-          // console.log('[Loop] No tasks available. Sleeping...');
-          await new Promise((r) => setTimeout(r, 5000)); // Sleep 5s
+          await new Promise((r) => setTimeout(r, 5000));
           continue;
         }
       }
@@ -49,11 +57,14 @@ export class AgentLoop {
         continue;
       }
 
-      await this.executeCycle(taskId);
+      if (currentAgent.status === 'PAUSED') {
+        board.updateAgentActivity(this.agentId, 'Waiting for user input...');
+        await new Promise((r) => setTimeout(r, 5000));
+        continue;
+      }
 
-      // For demo purposes, we might want to stop after one task or loop forever
-      // this.isRunning = false;
-      await new Promise((r) => setTimeout(r, 2000)); // Pace the loop
+      await this.executeCycle(taskId, workspaceRoot);
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
 
@@ -61,11 +72,14 @@ export class AgentLoop {
     this.isRunning = false;
   }
 
-  private async executeCycle(taskId: string) {
+  private async executeCycle(taskId: string, workspaceRoot: string) {
     const task = board.getTask(taskId);
     if (!task) return;
 
     // 2. Think: Construct Prompt
+    const currentAgent = board.getAgent(this.agentId);
+    if (!currentAgent) return;
+
     const logs = await memory.getRecentLogs(1);
     const knowledge = await memory.getKnowledge();
 
@@ -77,6 +91,9 @@ export class AgentLoop {
             Context:
             ${knowledge}
             
+            Current Workspace: ${workspaceRoot}
+            (All file operations are relative to this directory)
+            
             Recent Logs:
             ${logs[0] || 'No recent logs'}
             
@@ -86,6 +103,8 @@ export class AgentLoop {
               .map((t) => `- ${t.name}: ${t.description}`)
               .join('\n')}
             
+            ${currentAgent.pendingInput ? `USER MESSAGE: ${currentAgent.pendingInput}\nRespond to this user message specifically.` : ''}
+
             Respond in JSON format:
             { "thought": "reasoning", "action": "tool_name", "args": { ... } }
             `,
@@ -96,11 +115,8 @@ export class AgentLoop {
       },
     ];
 
-    // Re-fetch to ensure we have latest config
-    const currentAgent = board.getAgent(this.agentId);
-    if (!currentAgent) return;
-
     try {
+      board.updateAgentActivity(this.agentId, `Thinking about: ${task.title}`);
       const responseStr = await llm.generate(
         messages,
         currentAgent.config.provider,
@@ -109,33 +125,73 @@ export class AgentLoop {
 
       // 3. Act: Parse and Execute
       // Basic parsing (in real app, use schema validation)
-      const response = JSON.parse(responseStr);
+      let response: any;
+      try {
+        response = JSON.parse(responseStr);
+      } catch (e) {
+        console.error('Failed to parse LLM response:', responseStr);
+        return;
+      }
+
       console.log(`[Loop] Thought: ${response.thought}`);
 
       if (response.action === 'task_complete') {
+        board.updateAgentActivity(this.agentId, 'Finalizing task...');
         console.log('[Loop] Task Completed!');
         board.updateTaskStatus(taskId, 'DONE');
-        // We need to free the agent, but KanbanBoard logic handles status.
-        // Ideally we need a 'completeTask' method on Board.
-        // For now, let's just make Agent IDLE manually (hack for demo)
         const agent = board.getAgent(this.agentId);
         if (agent) {
           agent.status = 'IDLE';
           agent.currentTaskId = undefined;
+          agent.pendingInput = undefined; // Clear input
         }
-        await memory.addLog(`Completed task: ${task.title}`, this.agentId);
+        await memory.addLog(
+          `## ✅ Mission Accomplished\nTask **${task.title}** has been successfully completed.`,
+          this.agentId,
+        );
+        board.updateAgentActivity(this.agentId, 'Mission complete.');
+        return;
+      }
+
+      if (response.action === 'ask_user') {
+        const question = response.args.question || 'No question provided.';
+        board.updateAgentActivity(this.agentId, 'Paused for input.');
+        board.updateTaskStatus(taskId, 'AWAITING_INPUT', question);
+        const agent = board.getAgent(this.agentId);
+        if (agent) agent.status = 'PAUSED';
+
+        await memory.addLog(
+          `### ⚠️ Attention Required\n**Agent asks:** ${question}`,
+          this.agentId,
+        );
         return;
       }
 
       const tool = tools.getTool(response.action);
       if (tool) {
+        board.updateAgentActivity(this.agentId, `Executing tool: ${tool.name}`);
         console.log(`[Loop] Executing ${tool.name}...`);
-        const result = await tool.execute(response.args);
+
+        // Pass Context
+        const result = await tool.execute(response.args, {
+          cwd: workspaceRoot,
+          agentId: this.agentId,
+        });
+
         console.log(`[Loop] Result: ${result.substring(0, 50)}...`);
         await memory.addLog(
-          `Executed ${tool.name}: ${response.thought}`,
+          `#### 🛠 Tool Execution: ${tool.name}\n**Thought:** ${response.thought}\n\n**Result Snippet:**\n\`\`\`\n${result.substring(0, 200)}${result.length > 200 ? '...' : ''}\n\`\`\``,
           this.agentId,
         );
+        board.updateAgentActivity(
+          this.agentId,
+          `Finished ${tool.name}. Pacing...`,
+        );
+
+        // Clear pending input after ONE cycle if it was processed
+        if (currentAgent.pendingInput) {
+          board.clearAgentInput(this.agentId);
+        }
       } else {
         console.log(`[Loop] Unknown tool: ${response.action}`);
       }

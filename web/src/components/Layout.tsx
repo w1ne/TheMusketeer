@@ -10,7 +10,7 @@ export function Layout({ children }: LayoutProps) {
     return (
         <div className="min-h-screen bg-background text-white flex flex-col">
             {/* Navbar */}
-            <header className="h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900/90 backdrop-blur-xl relative z-50 shadow-lg">
+            <header className="h-24 border-b border-slate-800 flex items-center justify-between px-10 bg-slate-900/90 backdrop-blur-xl relative z-50 shadow-lg">
                 <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]">
                         <Sparkles className="animate-pulse" size={20} />

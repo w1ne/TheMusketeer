@@ -22,4 +22,13 @@ This file provides a high-level overview of the `thepuppeteer` repository struct
 ## Key Files
 
 - `README.md`: definitive guide for setup and usage.
+- `src/server/index.ts`: Usage of `@google/gemini-cli-core` for identity sync.
+- `src/cli.ts`: Entry point for the `themusketeer` CLI tool.
 - `.agent/CODEBASE_MAP.md`: this file.
+
+## Architecture
+
+- **Backend**: Node.js/Express server (`src/server`). Syncs user identity from `~/.gemini/google_accounts.json`.
+- **Frontend**: React/Vite/Tailwind (`web/`). Consumes `/api/user` to display current identity.
+- **CLI**: `src/cli.ts`. Interactive tool for managing agents and tasks.
+- **Gemini Integration**: Uses `@google/gemini-cli` for auth and model access.

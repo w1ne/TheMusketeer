@@ -100,13 +100,37 @@ async function main() {
                     resolve(true);
                   });
                 });
-                readline.question(
-                  'Enter a display name for this session: ',
-                  async (name: string) => {
-                    await saveAuth(name, 'gemini-cli-user@google.com', '');
-                    readline.close();
-                  },
-                );
+
+                // Detect Identity
+                const {
+                  UserAccountManager,
+                } = require('@google/gemini-cli-core');
+                const manager = new UserAccountManager();
+                const email = manager.getCachedGoogleAccount();
+
+                if (email) {
+                  console.log(`Detected Account: ${email}`);
+                  const name = email.split('@')[0].toUpperCase();
+                  await saveAuth(name, email, '');
+                } else {
+                  console.warn(
+                    'Could not detect Gemini CLI account. Manual entry required.',
+                  );
+                  readline.question(
+                    'Enter a display name for this session: ',
+                    async (name: string) => {
+                      readline.question(
+                        'Enter email: ',
+                        async (email: string) => {
+                          await saveAuth(name, email, '');
+                          readline.close();
+                        },
+                      );
+                    },
+                  );
+                  return;
+                }
+                readline.close();
                 return;
               }
 

@@ -67,13 +67,26 @@ export class KanbanBoard {
     return this.tasks.get(id);
   }
 
-  updateTaskStatus(id: string, status: TaskStatus): Task | undefined {
+  updateTaskStatus(
+    id: string,
+    status: TaskStatus,
+    message?: string,
+  ): Task | undefined {
     const task = this.tasks.get(id);
     if (task) {
       task.status = status;
+      if (message !== undefined) task.statusMessage = message;
       this.tasks.set(id, task);
     }
     return task;
+  }
+
+  updateTaskStatusMessage(id: string, message: string): void {
+    const task = this.tasks.get(id);
+    if (task) {
+      task.statusMessage = message;
+      this.tasks.set(id, task);
+    }
   }
 
   // --- Agents ---
@@ -107,6 +120,34 @@ export class KanbanBoard {
 
   getAgent(id: string): Agent | undefined {
     return this.agents.get(id);
+  }
+
+  updateAgentActivity(id: string, activity: string): void {
+    const agent = this.agents.get(id);
+    if (agent) {
+      agent.currentActivity = activity;
+      this.agents.set(id, agent);
+    }
+  }
+
+  setAgentInput(id: string, input: string): void {
+    const agent = this.agents.get(id);
+    if (agent) {
+      agent.pendingInput = input;
+      // If agent was paused/waiting, resume it
+      if (agent.status === 'PAUSED') {
+        agent.status = 'WORKING';
+      }
+      this.agents.set(id, agent);
+    }
+  }
+
+  clearAgentInput(id: string): void {
+    const agent = this.agents.get(id);
+    if (agent) {
+      agent.pendingInput = undefined;
+      this.agents.set(id, agent);
+    }
   }
 
   // --- Assignment ---

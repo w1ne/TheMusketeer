@@ -38,6 +38,14 @@ This document outlines the development phases for **TheMusketeer** (formerly The
 - [x] **Real Google Login**: Native OAuth 2.0 flow.
 - [x] **MCP Support**: Universal Tooling via Model Context Protocol.
 
+### Phase 12: Interactive Control & Transparency [ACTIVE]
+
+- [x] **Interactive Neural Link**: Two-way console communication. 🤺
+- [x] **ask_user Tool**: Agents can pause and request clarification. 0/10 🤺
+- [x] **Sandbox Explorer**: Built-in file browser for agent workspaces. 🤺
+- [x] **Split-Screen Interface**: Modern layout with logs and explorer side-by-side. 0/10 🤺
+- [ ] **Collaborative Refactor**: Multi-agent coding on same mission.
+
 ## Phase 10: Swarm Intelligence & Isolated Environments (Planned)
 
 - [ ] **Agent Delegation**: Agents can spawn/delegate sub-tasks to other agents.

@@ -1,18 +1,20 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Terminal, Play, Square, Cpu, Activity } from 'lucide-react';
-import { fetchLogs, startAgent, stopAgent } from '../api/client';
+import { fetchLogs, startAgent, stopAgent, sendAgentInput, fetchAgentFiles } from '../api/client';
+import { TerminalLog } from './TerminalLog';
+import { WorkspaceExplorer } from './WorkspaceExplorer';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface AgentSurfaceProps {
-    agentId: string | null; // If null, maybe show "Select Agent"
+    agentId: string | null;
     agentName: string;
     status: string;
+    activity?: string;
     currentTask?: string;
     onClose?: () => void;
 }
 
-import { motion, AnimatePresence } from 'framer-motion';
-
-export function AgentSurface({ agentId, agentName, status, currentTask }: AgentSurfaceProps) {
+export function AgentSurface({ agentId, agentName, status, activity, currentTask }: AgentSurfaceProps) {
     const [logs, setLogs] = useState<any[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +53,12 @@ export function AgentSurface({ agentId, agentName, status, currentTask }: AgentS
 
     const handleStop = async () => {
         if (agentId) await stopAgent(agentId);
+    };
+
+    const handleSendMessage = async (message: string) => {
+        if (agentId) {
+            await sendAgentInput(agentId, message);
+        }
     };
 
     return (
@@ -106,30 +114,40 @@ export function AgentSurface({ agentId, agentName, status, currentTask }: AgentS
                 )}
             </AnimatePresence>
 
-            {/* High-Contrast Terminal */}
-            <div className="flex-1 p-8 bg-[#020617] font-mono text-[14px] overflow-y-auto custom-scrollbar" ref={scrollRef}>
-                {logs.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-800">
-                        <Terminal size={48} className="mb-4 opacity-50" />
-                        <div className="text-xs uppercase tracking-[0.4em] font-black opacity-50">Awaiting Telemetry Stream...</div>
+            {/* Main Content Area: Terminal + Sidebar */}
+            <div className="flex-1 flex min-h-0 bg-[#020617]">
+                {/* Left: Interactive Terminal */}
+                <div className="flex-1 p-6 flex flex-col min-w-0">
+                    <TerminalLog
+                        logs={logs.map(l => typeof l === 'string' ? l : l.content)}
+                        agentName={agentName}
+                        activity={activity}
+                        onSendMessage={handleSendMessage}
+                    />
+                </div>
+
+                {/* Right: Management Sidebar */}
+                <div className="w-80 border-l border-slate-800 p-6 flex flex-col gap-6 bg-slate-900/30">
+                    {/* Sandbox View */}
+                    <div className="flex-1 flex flex-col min-h-0">
+                        {agentId && <WorkspaceExplorer agentId={agentId} />}
                     </div>
-                ) : (
-                    logs.map((log, i) => (
-                        <motion.div
-                            key={i}
-                            initial={{ x: -10, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            className="mb-3 flex gap-6 group"
-                        >
-                            <span className="text-slate-600 select-none shrink-0 font-bold tracking-tighter w-20">
-                                {typeof log === 'string' ? log.split(']')[0].replace('[', '') : new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}
-                            </span>
-                            <span className="text-slate-100 leading-relaxed font-bold break-words flex-1">
-                                {typeof log === 'string' ? log.split(']').slice(1).join(']') : log.content}
-                            </span>
-                        </motion.div>
-                    ))
-                )}
+
+                    {/* Agent Stats/Metadata */}
+                    <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/50">
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Operative Metadata</h4>
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] text-slate-400 font-bold">MODEL</span>
+                                <span className="text-[10px] text-white font-mono bg-slate-700 px-2 py-0.5 rounded">GEMINI-1.5-PRO</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] text-slate-400 font-bold">UPTIME</span>
+                                <span className="text-[10px] text-emerald-400 font-mono">14M 22S</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Enhanced Footer */}

@@ -68,24 +68,24 @@ export function Dashboard() {
             <motion.div
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                className="flex-1 flex flex-col border-r border-slate-800 min-w-[350px] max-w-xl bg-slate-900/80 backdrop-blur-xl p-6 gap-6"
+                className="flex-1 flex flex-col border-r border-slate-800 min-w-[400px] max-w-xl bg-slate-900/80 backdrop-blur-xl p-8 gap-8"
             >
                 <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-black flex items-center gap-3 tracking-tighter text-white">
-                        <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-900/20">
-                            <List size={20} />
+                    <h2 className="text-3xl font-black flex items-center gap-4 tracking-tighter text-white">
+                        <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-900/20">
+                            <List size={24} />
                         </div>
                         Mission Control
                     </h2>
                     <button
                         onClick={() => setIsTaskModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-xl text-sm font-bold text-white hover:bg-blue-500 shadow-xl shadow-blue-900/40 transition-all active:scale-95"
+                        className="flex items-center gap-2 px-6 py-3 bg-blue-600 rounded-2xl text-sm font-bold text-white hover:bg-blue-500 shadow-xl shadow-blue-900/40 transition-all active:scale-95"
                     >
-                        <Plus size={18} /> New Mission
+                        <Plus size={20} /> New Mission
                     </button>
                 </div>
 
-                <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-6 overflow-y-auto pr-4 custom-scrollbar">
                     <AnimatePresence>
                         {tasks.map((task, idx) => (
                             <motion.div
@@ -107,8 +107,18 @@ export function Dashboard() {
                                 <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">{task.title}</h3>
                                 <div className="mt-4 text-xs font-bold text-slate-300 flex justify-between items-center">
                                     <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${task.status === 'DONE' ? 'bg-emerald-400' : 'bg-blue-400'} shadow-sm`} />
-                                        <span className="uppercase tracking-wider">{task.status.replace('_', ' ')}</span>
+                                        <div className={`w-2 h-2 rounded-full ${task.status === 'DONE' ? 'bg-emerald-400 shadow-[0_0_8px_#4ade80]' :
+                                                task.status === 'AWAITING_INPUT' ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24] animate-pulse' :
+                                                    'bg-blue-400'
+                                            } shadow-sm`} />
+                                        <div className="flex flex-col">
+                                            <span className={`uppercase tracking-wider ${task.status === 'AWAITING_INPUT' ? 'text-amber-400' :
+                                                    task.status === 'DONE' ? 'text-emerald-400' : ''
+                                                }`}>{task.status.replace('_', ' ')}</span>
+                                            {task.status === 'AWAITING_INPUT' && task.statusMessage && (
+                                                <span className="text-[9px] text-amber-500/80 font-medium italic mt-0.5">{task.statusMessage}</span>
+                                            )}
+                                        </div>
                                     </div>
                                     {task.assignedAgentId && (
                                         <span className="px-2 py-0.5 rounded-md bg-slate-700 text-slate-300 border border-slate-600 uppercase text-[9px] tracking-widest">Assigned</span>
@@ -119,7 +129,6 @@ export function Dashboard() {
                     </AnimatePresence>
                 </div>
 
-                {/* Welcome Info */}
                 <div className="mt-auto p-5 rounded-3xl bg-slate-800/80 border border-slate-700 shadow-inner">
                     <h3 className="text-lg font-black text-white">Musketeer Command</h3>
                     <p className="text-xs font-medium text-slate-400 mt-2 leading-relaxed">
@@ -163,9 +172,18 @@ export function Dashboard() {
                                 <div className="font-black text-xl tracking-tighter text-white truncate pr-4 uppercase">{agent.name}</div>
                                 <div className={`w-4 h-4 rounded-full border-2 border-slate-950 ${agent.status === 'WORKING' ? 'bg-emerald-400 shadow-[0_0_15px_#4ade80] animate-pulse' : 'bg-slate-600'}`} />
                             </div>
-                            <div className="text-[10px] text-slate-500 font-black tracking-[0.2em] uppercase mb-6">OP_ID: {agent.id.slice(0, 8)}</div>
+                            <div className="text-[10px] text-slate-500 font-black tracking-[0.2em] uppercase mb-4">OP_ID: {agent.id.slice(0, 8)}</div>
+                            <div className="mb-4 min-h-[1.5rem]">
+                                {agent.currentActivity && (
+                                    <span className="text-[10px] text-cyan-400/80 font-medium italic animate-pulse">
+                                        {agent.currentActivity}
+                                    </span>
+                                )}
+                            </div>
                             <div className="flex items-center gap-2">
-                                <span className={`text-[10px] px-3 py-1 rounded-lg font-black uppercase tracking-widest ${agent.status === 'WORKING' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-300'
+                                <span className={`text-[10px] px-3 py-1 rounded-lg font-black uppercase tracking-widest ${agent.status === 'WORKING' ? 'bg-emerald-500 text-slate-950' :
+                                    agent.status === 'PAUSED' ? 'bg-amber-500 text-slate-950' :
+                                        'bg-slate-700 text-slate-300'
                                     }`}>
                                     {agent.status}
                                 </span>
@@ -190,6 +208,7 @@ export function Dashboard() {
                                     agentId={selectedAgent.id}
                                     agentName={selectedAgent.name}
                                     status={selectedAgent.status}
+                                    activity={selectedAgent.currentActivity}
                                     currentTask={tasks.find((t: any) => t.id === selectedAgent.currentTaskId)?.title}
                                 />
                             </motion.div>

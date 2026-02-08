@@ -4,14 +4,21 @@ import fs from 'fs/promises';
 
 const execAsync = promisify(exec);
 
+export interface ToolContext {
+  cwd?: string; // Workspace Root
+  agentId?: string;
+  // TODO: Logger?
+}
+
 export interface Tool {
   name: string;
   description: string;
-  execute: (args: any) => Promise<string>;
-  schema: any; // JSON Schema for arguments
+  execute: (args: any, context?: ToolContext) => Promise<string>;
+  schema: any; // JSON Schema for argument
 }
 
 import { mcpManager } from '../mcp/MCPManager';
+import path from 'path';
 
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
@@ -35,16 +42,22 @@ export class ToolRegistry {
   getTools(): Tool[] {
     return [...Array.from(this.tools.values()), ...mcpManager.getTools()];
   }
-  // ... (rest of file)
 
   private registerBuiltIns() {
     // 1. Read File
     this.register({
       name: 'read_file',
       description: 'Read contents of a file',
-      execute: async ({ path }) => {
+      execute: async ({ path: filePath }, context) => {
         try {
-          return await fs.readFile(path, 'utf-8');
+          const cwd = context?.cwd || process.cwd();
+          const safePath = path.resolve(cwd, filePath);
+
+          if (!safePath.startsWith(cwd)) {
+            return 'Security Error: Access Denied (Outside Workspace)';
+          }
+
+          return await fs.readFile(safePath, 'utf-8');
         } catch (e: any) {
           return `Error reading file: ${e.message}`;
         }
@@ -60,10 +73,18 @@ export class ToolRegistry {
     this.register({
       name: 'write_file',
       description: 'Write content to a file',
-      execute: async ({ path, content }) => {
+      execute: async ({ path: filePath, content }, context) => {
         try {
-          await fs.writeFile(path, content, 'utf-8');
-          return `Successfully wrote to ${path}`;
+          const cwd = context?.cwd || process.cwd();
+          const safePath = path.resolve(cwd, filePath);
+
+          if (!safePath.startsWith(cwd)) {
+            return 'Security Error: Access Denied (Outside Workspace)';
+          }
+
+          await fs.mkdir(path.dirname(safePath), { recursive: true });
+          await fs.writeFile(safePath, content, 'utf-8');
+          return `Successfully wrote to ${safePath}`;
         } catch (e: any) {
           return `Error writing file: ${e.message}`;
         }
@@ -82,9 +103,10 @@ export class ToolRegistry {
     this.register({
       name: 'run_command',
       description: 'Run a shell command',
-      execute: async ({ command }) => {
+      execute: async ({ command }, context) => {
         try {
-          const { stdout, stderr } = await execAsync(command);
+          const cwd = context?.cwd || process.cwd();
+          const { stdout, stderr } = await execAsync(command, { cwd }); // Use CWD
           return stdout || stderr;
         } catch (e: any) {
           return `Error executing command: ${e.message}`;
@@ -94,6 +116,26 @@ export class ToolRegistry {
         type: 'object',
         properties: { command: { type: 'string' } },
         required: ['command'],
+      },
+    });
+    // 4. Ask User for Input
+    this.register({
+      name: 'ask_user',
+      description:
+        'Pause the loop and ask the user for clarification or input.',
+      execute: async ({ question }) => {
+        // This is a marker tool. The AgentLoop will handle the actual pausing logic.
+        return `AWAITING_INPUT: ${question}`;
+      },
+      schema: {
+        type: 'object',
+        properties: {
+          question: {
+            type: 'string',
+            description: 'The question to ask the user.',
+          },
+        },
+        required: ['question'],
       },
     });
   }
