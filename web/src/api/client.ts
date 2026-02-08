@@ -47,3 +47,16 @@ export async function fetchUser() {
   const res = await fetch(`${API_URL}/user`);
   return res.json();
 }
+
+export async function fetchUsers() {
+  const res = await fetch(`${API_URL}/users`);
+  return res.json();
+}
+
+export async function switchUser(email: string) {
+  await fetch(`${API_URL}/auth/switch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+}

@@ -1,6 +1,10 @@
 import { Agent, Task, TaskStatus, AgentStatus, TaskPriority } from './types';
 import { randomUUID } from 'crypto';
 
+/**
+ * The central orchestrator for the Vibe Kanban framework.
+ * Thread-safe singleton that manages tasks, agents, and their assignments.
+ */
 export class KanbanBoard {
   private tasks: Map<string, Task> = new Map();
   private agents: Map<string, Agent> = new Map();
@@ -74,12 +78,24 @@ export class KanbanBoard {
 
   // --- Agents ---
 
-  spawnAgent(name: string): Agent {
+  spawnAgent(
+    name: string,
+    config: {
+      provider: 'gemini' | 'anthropic' | 'gemini-cli';
+      model: string;
+      apiKey?: string;
+    },
+  ): Agent {
     const id = randomUUID();
     const agent: Agent = {
       id,
       name,
       status: 'IDLE',
+      config: {
+        provider: config.provider || 'gemini',
+        model: config.model || 'gemini-1.5-pro',
+        apiKey: config.apiKey,
+      },
     };
     this.agents.set(id, agent);
     return agent;

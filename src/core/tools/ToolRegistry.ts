@@ -11,6 +11,8 @@ export interface Tool {
   schema: any; // JSON Schema for arguments
 }
 
+import { mcpManager } from '../mcp/MCPManager';
+
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
 
@@ -23,12 +25,17 @@ export class ToolRegistry {
   }
 
   getTool(name: string): Tool | undefined {
-    return this.tools.get(name);
+    // Check built-ins first
+    if (this.tools.has(name)) return this.tools.get(name);
+
+    // Check MCP tools
+    return mcpManager.getTools().find((t) => t.name === name);
   }
 
   getTools(): Tool[] {
-    return Array.from(this.tools.values());
+    return [...Array.from(this.tools.values()), ...mcpManager.getTools()];
   }
+  // ... (rest of file)
 
   private registerBuiltIns() {
     // 1. Read File

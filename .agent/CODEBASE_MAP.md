@@ -17,6 +17,7 @@ This file provides a high-level overview of the `thepuppeteer` repository struct
   - Open a Pull Request for review.
 - **No Direct Prompts**: Avoid leaving TODOs or comments for manual intervention unless absolutely necessary.
 - **Minimal Dependencies**: Keep the repository lightweight. Avoid adding unnecessary packages.
+- **Tech Stack**: Polyglot (Node.js, Python, Go, Rust supported). Agents should check installed tools (e.g. `python --version`) before using them.
 
 ## Key Files
 

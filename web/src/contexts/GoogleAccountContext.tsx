@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { fetchUser } from '../api/client';
+import { fetchUser, fetchUsers, switchUser as apiSwitchUser } from '../api/client';
 
 export interface GoogleProfile {
     name: string;
@@ -22,30 +22,36 @@ export function GoogleAccountProvider({ children }: { children: React.ReactNode 
         avatar: ''
     });
 
-    // For now, only 1 account from API
     const [accounts, setAccounts] = useState<GoogleProfile[]>([]);
+
+    const refreshData = async () => {
+        try {
+            const user = await fetchUser();
+            const allUsers = await fetchUsers();
+            setCurrentUser(user);
+            setAccounts(allUsers);
+        } catch (e) {
+            console.error("Failed to load user data", e);
+        }
+    };
 
     // Load from API on mount
     useEffect(() => {
-        const loadUser = async () => {
-            try {
-                const user = await fetchUser();
-                setCurrentUser(user);
-                setAccounts([user]); // In future, API could return list
-            } catch (e) {
-                console.error("Failed to load user", e);
-            }
-        };
-        loadUser();
+        refreshData();
 
         // Poll for changes (if CLI logs in a new user)
-        const interval = setInterval(loadUser, 5000);
+        const interval = setInterval(refreshData, 2000);
         return () => clearInterval(interval);
     }, []);
 
-    const switchAccount = (email: string) => {
-        // In a real app with multi-account support, we'd POST /api/auth/switch
-        console.log('Switching account (not implemented in backend yet):', email);
+    const switchAccount = async (email: string) => {
+        try {
+            await apiSwitchUser(email);
+            // Immediate refresh to update UI
+            await refreshData();
+        } catch (e) {
+            console.error("Failed to switch account", e);
+        }
     };
 
     return (

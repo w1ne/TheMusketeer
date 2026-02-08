@@ -96,8 +96,16 @@ export class AgentLoop {
       },
     ];
 
+    // Re-fetch to ensure we have latest config
+    const currentAgent = board.getAgent(this.agentId);
+    if (!currentAgent) return;
+
     try {
-      const responseStr = await llm.generate(messages);
+      const responseStr = await llm.generate(
+        messages,
+        currentAgent.config.provider,
+        currentAgent.config,
+      );
 
       // 3. Act: Parse and Execute
       // Basic parsing (in real app, use schema validation)

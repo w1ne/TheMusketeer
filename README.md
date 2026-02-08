@@ -1,8 +1,8 @@
-# Google Antigravity Vibe Kanban
+# 🤺 TheMusketeer
 
-A Lean Framework for Accelerated Agentic Delivery.
+> **All for One, One for All.** The multi-agent orchestration framework for the next generation of AI development.
 
-This repository implements the "Vibe Kanban" methodology for high-velocity AI-driven development. It replaces complex permission hierarchies with parallel agent execution and automated verification.
+**TheMusketeer** (formerly ThePuppeteer) is a lean, powerful, and highly extensible multi-agent framework built on the principles of the **Vibe Kanban** framework. It bridges the gap between high-level task management and autonomous agent execution.
 
 ## Core Philosophy
 
@@ -64,38 +64,47 @@ Open a new terminal to interact with your agents.
 
 ```bash
 # Create Tasks
-npx thepuppeteer task:create "Fix Login Bug" HIGH
-npx thepuppeteer task:create "Update Docs" LOW
+npx themusketeer task:create "Fix Login Bug" HIGH
+npx themusketeer task:create "Update Docs" LOW
 
 # Create Dependencies
-npx thepuppeteer task:create "Release" MEDIUM
-npx thepuppeteer task:depends <ReleaseID> <FixLoginBugID>
+npx themusketeer task:create "Release" MEDIUM
+npx themusketeer task:depends <ReleaseID> <FixLoginBugID>
 
 # Spawn Agents
-npx thepuppeteer agent:spawn "Dev-Bot-1"
+npx themusketeer agent:spawn "Dev-Bot-1"
 ```
 
 **Memory Commands (OpenClaW-style):**
 
 ```bash
 # Log Activity (Ephemeral)
-npx thepuppeteer memory:log "Debugged login issue"
+npx themusketeer memory:log "Debugged login issue"
 
 # Add Knowledge (Durable)
-npx thepuppeteer memory:learn "User prefers dark mode"
+npx themusketeer memory:learn "User prefers dark mode"
 
 # View Memory
-npx thepuppeteer memory:show
+npx themusketeer memory:show
 ```
 
 ### 3. Check Status
 
 ```bash
-npx thepuppeteer status
+npx themusketeer status
 ```
+
+## 🤺 Features (Phase 9)
+
+- **Official Gemini CLI**: Leverages `@google/gemini-cli` for zero-config LLM access.
+- **Model Context Protocol (Remote Tools)**: Agents automatically connect to any MCP server (Filesystem, GitHub, Google Maps).
+- **Native Google Auth**: Secure OAuth 2.0 implementation for CLI and Server.
+- **Multi-Model Support**: Switch between Gemini and Anthropic models per agent.
+- **Durable Memory**: OpenClaW-inspired Markdown memory store.
 
 ## Getting Started
 
-1.  Review `.agent/CODEBASE_MAP.md` to understand the project structure.
-2.  Define your tasks.
-3.  Start spawning agents!
+1.  **Install**: `npm install`
+2.  **Auth**: `npx themusketeer auth:login` (Select Gemini CLI for official Google auth).
+3.  **Spawn**: `npx themusketeer agent:spawn "Neo"`
+4.  **Work**: `npx themusketeer status` and `npx themusketeer agent:start "Neo"`

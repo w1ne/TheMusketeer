@@ -17,9 +17,16 @@ export interface Task {
   subtasks: string[];
 }
 
+export interface AgentConfig {
+  provider: 'gemini' | 'anthropic' | 'gemini-cli';
+  model: string;
+  apiKey?: string;
+}
+
 export interface Agent {
   id: string;
   name: string;
   status: AgentStatus;
+  config: AgentConfig;
   currentTaskId?: string;
 }

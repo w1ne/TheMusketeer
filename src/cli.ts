@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { board } from './core/KanbanBoard';
+import chalk from 'chalk';
+import fetch from 'node-fetch';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -41,11 +43,17 @@ async function main() {
 
       case 'agent:spawn':
         const name = args[1];
+        const provider = args[2] as 'gemini' | 'anthropic' | 'gemini-cli';
+        const model = args[3];
+
         if (!name) {
           console.error('Error: Agent name is required.');
+          console.error(
+            'Usage: themusketeer agent:spawn <name> [provider] [model]',
+          );
           process.exit(1);
         }
-        await spawnAgent(name);
+        await spawnAgent(name, provider, model);
         break;
 
       case 'auth:login':
@@ -54,17 +62,88 @@ async function main() {
           output: process.stdout,
         });
 
-        readline.question('Enter your Google Name: ', (gName: string) => {
-          readline.question('Enter your Google Email: ', (gEmail: string) => {
-            readline.question(
-              'Enter Gemini API Key (Optional): ',
-              async (gKey: string) => {
-                await saveAuth(gName, gEmail, gKey);
-                readline.close();
-              },
-            );
+        console.log('--- Google Login ---');
+        console.log(
+          'To use Real Login, you need an OAuth Client ID & Secret from Google Cloud Console.',
+        );
+        console.log(
+          '(Press ENTER to use a default placeholder - might fail if quotas exceeded)',
+        );
+
+        readline.question('Client ID: ', (cid: string) => {
+          readline.question('Client Secret: ', async (csec: string) => {
+            const clientId = cid || 'YOUR_DEFAULT_CLIENT_ID'; // Placeholder
+            const clientSecret = csec || 'YOUR_DEFAULT_SECRET';
+
+            const { GoogleAuthService } = require('./core/auth/GoogleAuth');
+            const authService = new GoogleAuthService(clientId, clientSecret);
+
+            console.log('\nSelect Login Method:');
+            console.log('1. Interactive (Browser Popup - requires port 3000)');
+            console.log('2. Manual (Copy/Paste Code)');
+            console.log('3. Gemini CLI (Official Tool)');
+
+            readline.question('Choice [1/2/3]: ', async (choice: string) => {
+              let user: any;
+              if (choice === '3') {
+                console.log('Launching @google/gemini-cli auth login...');
+                const { spawn } = require('child_process');
+                await new Promise((resolve) => {
+                  const child = spawn(
+                    'npx',
+                    ['@google/gemini-cli', 'auth', 'login'],
+                    { stdio: 'inherit', shell: true },
+                  );
+                  child.on('close', (code: number) => {
+                    if (code === 0) console.log('Gemini CLI Auth Successful.');
+                    else console.error('Gemini CLI Auth Failed.');
+                    resolve(true);
+                  });
+                });
+                readline.question(
+                  'Enter a display name for this session: ',
+                  async (name: string) => {
+                    await saveAuth(name, 'gemini-cli-user@google.com', '');
+                    readline.close();
+                  },
+                );
+                return;
+              }
+
+              if (choice === '2') {
+                const url = await authService.loginManual();
+                console.log('\nOpen this URL:', url);
+                await new Promise((resolve) => {
+                  readline.question('Enter Code: ', async (code: string) => {
+                    user = await authService.exchangeCode(code);
+                    resolve(true);
+                  });
+                });
+              } else {
+                user = await authService.login();
+              }
+
+              if (user) {
+                console.log(`\nWelcome, ${user.name}!`);
+                await saveAuth(user.name, user.email, ''); // Key is optional
+              } else {
+                console.error('Login failed.');
+              }
+              readline.close();
+            });
           });
         });
+        break;
+
+      case 'auth:switch':
+        const email = args[1];
+        if (!email) {
+          console.log('Available Users:');
+          await listUsers();
+          console.log('\nUsage: themusketeer auth:switch <email>');
+        } else {
+          await switchUser(email);
+        }
         break;
 
       case 'agent:start':
@@ -130,8 +209,15 @@ async function main() {
 }
 
 function printHelp() {
+  console.log(
+    chalk.blue(`
+ 🤺 TheMusketeer
+------------------
+All for One, One for All.
+`),
+  );
   console.log(`
-Usage: thepuppeteer <command> [args]
+Usage: themusketeer <command> [args]
 
 Core Commands:
   status                   Show current board status (Tasks & Agents)
@@ -158,10 +244,10 @@ async function printStatus() {
     fetch(`${API_URL}/agents`),
   ]);
 
-  const tasks = await tasksRes.json();
-  const agents = await agentsRes.json();
+  const tasks = (await tasksRes.json()) as any[];
+  const agents = (await agentsRes.json()) as any[];
 
-  console.log('--- Kanban Board Status ---');
+  console.log(chalk.bold.blue('\n--- TheMusketeer Kanban Board ---'));
   console.log(`Tasks (${tasks.length}):`);
   // console.table(tasks); // Too verbose with all new fields
   tasks.forEach((t: any) => {
@@ -181,8 +267,9 @@ async function createTask(title: string, priority: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, priority }),
   });
-  const data = await res.json();
-  console.log('Task Created:', data);
+  const data: any = await res.json();
+  console.log(chalk.green('\n✔ Task Created Successfully:'));
+  console.log(chalk.yellow(JSON.stringify(data, null, 2)));
 }
 
 async function addDependency(id: string, dependencyId: string) {
@@ -199,20 +286,21 @@ async function addDependency(id: string, dependencyId: string) {
   }
 }
 
-async function spawnAgent(name: string) {
+async function spawnAgent(name: string, provider?: string, model?: string) {
   const res = await fetch(`${API_URL}/agents`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, provider, model }),
   });
-  const data = await res.json();
-  console.log('Agent Spawned:', data);
+  const data: any = await res.json();
+  console.log(chalk.green('\n✔ Agent Spawned Successfully:'));
+  console.log(chalk.cyan(JSON.stringify(data, null, 2)));
 }
 
 async function controlAgentLoop(name: string, action: 'start' | 'stop') {
   // 1. Find agent by name
   const agentsRes = await fetch(`${API_URL}/agents`);
-  const agents = await agentsRes.json();
+  const agents = (await agentsRes.json()) as any[];
   const agent = agents.find((a: any) => a.name === name);
 
   if (!agent) {
@@ -261,15 +349,24 @@ async function addKnowledge(content: string) {
 }
 
 async function showMemory() {
-  console.log('--- Durable Knowledge (MEMORY.md) ---');
   const knowledgeRes = await fetch(`${API_URL}/memory/knowledge`);
-  const knowledge = await knowledgeRes.json();
-  console.log(knowledge.content || '(Empty)');
-
-  console.log('\n--- Recent Logs (Last 7 Days) ---');
+  const knowledge = (await knowledgeRes.json()) as any;
   const logsRes = await fetch(`${API_URL}/memory/logs`);
-  const logs = await logsRes.json();
-  logs.forEach((log: string) => console.log(log));
+  const logs = (await logsRes.json()) as any[];
+
+  console.log(chalk.bold.blue('\n--- Durable Knowledge (MEMORY.md) ---'));
+  console.log(chalk.cyan(knowledge.content || '(Empty)'));
+
+  console.log(chalk.bold.blue('\n--- Recent Logs (Last 7 Days) ---'));
+  logs.forEach((log: any) => {
+    if (typeof log === 'string') {
+      console.log(chalk.gray(log));
+    } else {
+      console.log(
+        `${chalk.gray(log.timestamp)} [${chalk.magenta(log.agentId)}] ${log.content}`,
+      );
+    }
+  });
 }
 
 function runLocalDemo() {
@@ -282,7 +379,10 @@ function runLocalDemo() {
   console.log(t);
 
   console.log('Spawning Agent "Local Agent"...');
-  const a = board.spawnAgent('Local Agent');
+  const a = board.spawnAgent('Local Agent', {
+    provider: 'gemini-cli',
+    model: 'default',
+  });
   console.log(a);
 }
 
@@ -298,6 +398,35 @@ async function saveAuth(name: string, email: string, key: string) {
     if (key) console.log('Gemini API Key saved.');
   } else {
     console.error('Failed to save credentials.');
+  }
+}
+
+async function listUsers() {
+  const res = await fetch(`${API_URL}/users`);
+  const userRes = await fetch(`${API_URL}/user`);
+  const users = (await res.json()) as any[];
+  const activeUser = (await userRes.json()) as any;
+
+  console.log(chalk.bold.blue('\n--- Identities ---'));
+  users.forEach((u: any) => {
+    const isCurrent = activeUser && u.email === activeUser.email;
+    console.log(
+      `${isCurrent ? chalk.blue('▶') : ' '} ${chalk.green(u.name)} (${chalk.gray(u.email)})`,
+    );
+  });
+}
+
+async function switchUser(email: string) {
+  const res = await fetch(`${API_URL}/auth/switch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+
+  if (res.ok) {
+    console.log(`Switched to user: ${email}`);
+  } else {
+    console.error('Failed to switch user. Does it exist?');
   }
 }
 
