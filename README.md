@@ -104,31 +104,23 @@ npx themusketeer status
 
 ## 🧪 How to Test
 
-To experience the full **Musketeer Swarm**, follow these steps:
+To experience the full **Musketeer Swarm** with a single command:
 
-### 1. Start the Neural Backend
-
-```bash
-# Terminal 1
-npm install
-npm run start:server
-```
-
-### 2. Launch the Web Dashboard
+### 1. Unified Launch
 
 ```bash
-# Terminal 2
-cd web
 npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) to see the premium dashboard.
+This command starts both the **Neural Backend** and the **Web Dashboard** concurrently.
 
-### 3. Interact via CLI
+- Web Dashboard: [http://localhost:5173](http://localhost:5173)
+- API Docs: [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
+
+### 2. Interact via CLI
 
 ```bash
-# Terminal 3
 # Authenticate (Select Gemini CLI for the pro experience)
 npx themusketeer auth:login
 
