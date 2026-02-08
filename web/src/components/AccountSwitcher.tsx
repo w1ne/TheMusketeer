@@ -16,10 +16,10 @@ export function AccountSwitcher() {
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
-                    "flex items-center gap-3 p-1.5 pr-4 rounded-2xl transition-all border-2",
+                    'flex items-center gap-3 p-1.5 pr-4 rounded-2xl transition-all border-2',
                     isOpen
-                        ? "bg-slate-800 border-blue-500 shadow-lg"
-                        : "bg-slate-900 border-slate-800 hover:border-slate-700 hover:bg-slate-800"
+                        ? 'bg-slate-800 border-blue-500 shadow-lg'
+                        : 'bg-slate-900 border-slate-800 hover:border-slate-700 hover:bg-slate-800'
                 )}
             >
                 <div className="relative">
@@ -34,7 +34,7 @@ export function AccountSwitcher() {
                     <div className="text-xs font-black text-white uppercase tracking-tight leading-none">{currentUser.name}</div>
                     <div className="text-[10px] text-slate-500 font-bold tracking-tight mt-0.5">{currentUser.email}</div>
                 </div>
-                <ChevronDown size={14} className={cn("text-slate-500 transition-transform duration-200", isOpen && "rotate-180")} />
+                <ChevronDown size={14} className={cn('text-slate-500 transition-transform duration-200', isOpen && 'rotate-180')} />
             </button>
 
             <AnimatePresence>
@@ -63,10 +63,10 @@ export function AccountSwitcher() {
                                             setIsOpen(false);
                                         }}
                                         className={cn(
-                                            "w-full flex items-center gap-4 p-3 rounded-2xl transition-all text-left group",
+                                            'w-full flex items-center gap-4 p-3 rounded-2xl transition-all text-left group',
                                             currentUser.email === account.email
-                                                ? "bg-blue-600 shadow-xl shadow-blue-900/20"
-                                                : "hover:bg-slate-800"
+                                                ? 'bg-blue-600 shadow-xl shadow-blue-900/20'
+                                                : 'hover:bg-slate-800'
                                         )}
                                     >
                                         <img
@@ -76,14 +76,14 @@ export function AccountSwitcher() {
                                         />
                                         <div className="flex-1 min-w-0">
                                             <div className={cn(
-                                                "text-sm font-black uppercase tracking-tight truncate",
-                                                currentUser.email === account.email ? "text-white" : "text-slate-100 group-hover:text-blue-400"
+                                                'text-sm font-black uppercase tracking-tight truncate',
+                                                currentUser.email === account.email ? 'text-white' : 'text-slate-100 group-hover:text-blue-400'
                                             )}>
                                                 {account.name}
                                             </div>
                                             <div className={cn(
-                                                "text-[10px] font-bold truncate",
-                                                currentUser.email === account.email ? "text-blue-100" : "text-slate-500"
+                                                'text-[10px] font-bold truncate',
+                                                currentUser.email === account.email ? 'text-blue-100' : 'text-slate-500'
                                             )}>
                                                 {account.email}
                                             </div>
@@ -94,7 +94,7 @@ export function AccountSwitcher() {
                             </div>
                             <div className="bg-slate-950 p-4 border-t border-slate-800">
                                 <button
-                                    onClick={() => alert("Please use 'npx themusketeer auth:login' in your terminal to add new accounts. 🤺")}
+                                    onClick={() => alert('Please use \'npx themusketeer auth:login\' in your terminal to add new accounts. 🤺')}
                                     className="w-full py-2.5 rounded-xl border border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-900 transition-all"
                                 >
                                     Add New Account

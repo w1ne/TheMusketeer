@@ -78,7 +78,7 @@ describe('KanbanBoard', () => {
   });
 
   it('should auto-assign HIGH priority tasks first', () => {
-    const low = board.createTask('Low Priority', 'LOW');
+    board.createTask('Low Priority', 'LOW');
     const high = board.createTask('High Priority', 'HIGH');
     const agent = board.spawnAgent('Star Performer');
 

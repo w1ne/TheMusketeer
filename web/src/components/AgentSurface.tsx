@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Terminal, Play, Square, Cpu, Activity } from 'lucide-react';
-import { fetchLogs, startAgent, stopAgent, sendAgentInput, fetchAgentFiles } from '../api/client';
+import { Play, Square, Activity } from 'lucide-react';
+import { fetchLogs, startAgent, stopAgent, sendAgentInput } from '../api/client';
 import { TerminalLog } from './TerminalLog';
 import { WorkspaceExplorer } from './WorkspaceExplorer';
 import { motion, AnimatePresence } from 'framer-motion';

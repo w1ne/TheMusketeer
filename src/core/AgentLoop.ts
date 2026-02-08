@@ -128,7 +128,7 @@ export class AgentLoop {
       let response: any;
       try {
         response = JSON.parse(responseStr);
-      } catch (e) {
+      } catch (_e) {
         console.error('Failed to parse LLM response:', responseStr);
         return;
       }

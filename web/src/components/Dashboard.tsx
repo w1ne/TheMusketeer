@@ -6,7 +6,7 @@ import { useGoogleAccount } from '../contexts/GoogleAccountContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function Dashboard() {
-    const { currentUser } = useGoogleAccount();
+    useGoogleAccount();
     const [tasks, setTasks] = useState<any[]>([]);
     const [agents, setAgents] = useState<any[]>([]);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -15,9 +15,9 @@ export function Dashboard() {
     const [isLoading, setIsLoading] = useState(false);
 
     // Form states
-    const [taskTitle, setTaskTitle] = useState("");
-    const [taskPriority, setTaskPriority] = useState("MEDIUM");
-    const [agentName, setAgentName] = useState("");
+    const [taskTitle, setTaskTitle] = useState('');
+    const [taskPriority, setTaskPriority] = useState('MEDIUM');
+    const [agentName, setAgentName] = useState('');
 
     // Polling for data
     useEffect(() => {
@@ -41,7 +41,7 @@ export function Dashboard() {
         try {
             await createTask(taskTitle, taskPriority);
             setIsTaskModalOpen(false);
-            setTaskTitle("");
+            setTaskTitle('');
         } finally {
             setIsLoading(false);
         }
@@ -54,7 +54,7 @@ export function Dashboard() {
         try {
             await spawnAgent(agentName);
             setIsAgentModalOpen(false);
-            setAgentName("");
+            setAgentName('');
         } finally {
             setIsLoading(false);
         }
@@ -108,12 +108,12 @@ export function Dashboard() {
                                 <div className="mt-4 text-xs font-bold text-slate-300 flex justify-between items-center">
                                     <div className="flex items-center gap-2">
                                         <div className={`w-2 h-2 rounded-full ${task.status === 'DONE' ? 'bg-emerald-400 shadow-[0_0_8px_#4ade80]' :
-                                                task.status === 'AWAITING_INPUT' ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24] animate-pulse' :
-                                                    'bg-blue-400'
+                                            task.status === 'AWAITING_INPUT' ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24] animate-pulse' :
+                                                'bg-blue-400'
                                             } shadow-sm`} />
                                         <div className="flex flex-col">
                                             <span className={`uppercase tracking-wider ${task.status === 'AWAITING_INPUT' ? 'text-amber-400' :
-                                                    task.status === 'DONE' ? 'text-emerald-400' : ''
+                                                task.status === 'DONE' ? 'text-emerald-400' : ''
                                                 }`}>{task.status.replace('_', ' ')}</span>
                                             {task.status === 'AWAITING_INPUT' && task.statusMessage && (
                                                 <span className="text-[9px] text-amber-500/80 font-medium italic mt-0.5">{task.statusMessage}</span>
@@ -276,7 +276,7 @@ export function Dashboard() {
                                     disabled={isLoading}
                                     className="w-full py-5 bg-blue-600 rounded-2xl font-black text-base uppercase tracking-[0.2em] text-white hover:bg-blue-500 transition-all flex items-center justify-center gap-4 active:scale-[0.98] shadow-2xl shadow-blue-900/40"
                                 >
-                                    {isLoading ? <Loader2 className="animate-spin" /> : "Authorize Deployment"}
+                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Authorize Deployment'}
                                 </button>
                             </form>
                         </motion.div>
@@ -310,7 +310,7 @@ export function Dashboard() {
                                     disabled={isLoading}
                                     className="w-full py-5 bg-white rounded-2xl font-black text-base uppercase tracking-[0.2em] text-slate-950 hover:bg-slate-200 transition-all flex items-center justify-center gap-4 active:scale-[0.98] shadow-2xl"
                                 >
-                                    {isLoading ? <Loader2 className="animate-spin text-slate-950" /> : "Initialize Operative"}
+                                    {isLoading ? <Loader2 className="animate-spin text-slate-950" /> : 'Initialize Operative'}
                                 </button>
                             </form>
                         </motion.div>

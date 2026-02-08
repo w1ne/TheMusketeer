@@ -1,8 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import http from 'http';
 import url from 'url';
-// @ts-ignore
-import { destroy } from 'destroy';
 import open from 'open';
 
 // Scopes for Profile and Email

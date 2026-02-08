@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { clsx } from 'clsx';
+import React, { useEffect, useRef } from 'react';
 import { Terminal } from 'lucide-react';
 
 interface TerminalLogProps {

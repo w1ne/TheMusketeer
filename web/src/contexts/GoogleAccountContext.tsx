@@ -31,7 +31,7 @@ export function GoogleAccountProvider({ children }: { children: React.ReactNode 
             setCurrentUser(user);
             setAccounts(allUsers);
         } catch (e) {
-            console.error("Failed to load user data", e);
+            console.error('Failed to load user data', e);
         }
     };
 
@@ -50,7 +50,7 @@ export function GoogleAccountProvider({ children }: { children: React.ReactNode 
             // Immediate refresh to update UI
             await refreshData();
         } catch (e) {
-            console.error("Failed to switch account", e);
+            console.error('Failed to switch account', e);
         }
     };
 

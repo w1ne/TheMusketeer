@@ -1,14 +1,15 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import swaggerUi from 'swagger-ui-express';
 import path from 'path';
+import os from 'os';
+import fs_sync from 'fs';
+import fs from 'fs/promises';
 import { board } from '../core/KanbanBoard';
 import { memory } from '../core/MemoryStore';
 import { AgentLoop } from '../core/AgentLoop';
 import { mcpManager } from '../core/mcp/MCPManager';
 import { UserAccountManager } from '@google/gemini-cli-core';
-import fs from 'fs/promises';
 import { workspaceManager } from '../core/WorkspaceManager';
 
 const app = express();
@@ -27,7 +28,7 @@ mcpManager.loadConfig(mcpConfigPath).then(() => {
 // Map to store active loops
 const activeLoops: Map<string, AgentLoop> = new Map();
 
-// --- Auth Store (Synced with Gemini CLI) ---
+// --- Auth Store ---
 interface User {
   name: string;
   email: string;
@@ -45,52 +46,40 @@ const userStore = {
   },
 
   syncWithAntigravity(): boolean {
+    const vscdbPath = path.join(
+      os.homedir(),
+      '.config/Code/User/globalStorage/state.vscdb',
+    );
+    if (!fs_sync.existsSync(vscdbPath)) return false;
+
     try {
-      const os = require('os');
-      const fs = require('fs');
-      const vscdbPath = path.join(
-        os.homedir(),
-        '.config/Antigravity/User/globalStorage/state.vscdb',
-      );
-      if (!fs.existsSync(vscdbPath)) return false;
-
-      const buffer = fs.readFileSync(vscdbPath);
+      const buffer = fs_sync.readFileSync(vscdbPath);
       const content = buffer.toString('binary');
-
       const emailMatch = content.match(/[a-zA-Z0-9._%+-]+@gmail\.com/);
-      const nameMatch = content.match(/"name":"(.*?)"/);
-      const marker = 'antigravityAuthStatus';
-      const start = content.indexOf(marker);
-      let apiKey = '';
-
-      if (start !== -1) {
-        const slice = content.substring(start, start + 2000);
-        const apiMatch = slice.match(/"apiKey":"(.*?)"/);
-        if (apiMatch) apiKey = apiMatch[1];
-      }
 
       if (emailMatch) {
         const email = emailMatch[0];
-        let name = 'Antigravity User';
-        if (nameMatch && !nameMatch[1].includes('Source Control')) {
-          name = nameMatch[1];
-        }
-        console.log(
-          `[Auth] Inherited Antigravity Identity: ${name} (${email})`,
+        const name = email.split('@')[0].toUpperCase();
+        const apiKeyMatch = content.match(
+          /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/,
         );
+        const apiKey = apiKeyMatch ? apiKeyMatch[0] : '';
 
         const user: User = {
           name,
           email,
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
-          apiKey: apiKey,
+          apiKey,
         };
         this.users.set(email, user);
         this.activeEmail = email;
+        console.log(
+          `[Auth] Inherited Antigravity Identity: ${name} (${email})`,
+        );
         return true;
       }
-    } catch (e: any) {
-      console.warn('[Auth] Antigravity sync skipped:', e.message);
+    } catch (_e: any) {
+      console.warn('[Auth] Antigravity sync skipped');
     }
     return false;
   },
@@ -104,13 +93,10 @@ const userStore = {
 
       if (email) {
         console.log(`[Auth] Syncing with Gemini CLI: ${email}`);
-        const name = email
-          .split('@')[0]
-          .replace(/[^a-zA-Z]/g, ' ')
-          .toUpperCase();
+        const name = email.split('@')[0].toUpperCase();
         const user: User = {
-          name: name || 'Google User',
-          email: email,
+          name,
+          email,
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
           apiKey: '',
         };
@@ -119,7 +105,7 @@ const userStore = {
       } else {
         this.setupGuest();
       }
-    } catch (error) {
+    } catch (_error) {
       this.setupGuest();
     }
   },
@@ -140,11 +126,8 @@ const userStore = {
 // Initialize identities
 userStore.syncWithGeminiCLI();
 
-// ... (API Documentation update skipped to avoid huge diff, assume docs are "good enough" for demo)
+// --- API Routes ---
 
-// ...
-
-// --- Auth ---
 app.post('/api/auth/login', (req: Request, res: Response) => {
   const { name, email, key } = req.body;
   if (name && email) {
@@ -156,9 +139,6 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     };
     userStore.users.set(email, newUser);
     userStore.activeEmail = email;
-
-    // In real app, we would configure LLM service here
-    /* if (key) llm.setApiKey(key); */
   }
   const active = userStore.getActiveUser();
   res.json({ status: 'ok', user: active });
@@ -194,7 +174,7 @@ app.post('/api/agents', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Name is required' });
   }
   const agent = board.spawnAgent(name, {
-    provider: provider || 'gemini', // Default
+    provider: provider || 'gemini',
     model: model || 'gemini-1.5-pro',
     apiKey,
   });
@@ -263,7 +243,7 @@ app.get('/api/agents/:id/files', async (req: Request, res: Response) => {
     const workspaceRoot = workspaceManager.getWorkspaceRoot(id);
     const files = await fs.readdir(workspaceRoot, { recursive: true });
     res.json(files);
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to list workspace files' });
   }
 });
@@ -286,7 +266,7 @@ app.put('/api/tasks/:id', (req: Request, res: Response) => {
   const { id } = req.params;
   const { status, dependencyId } = req.body;
 
-  let task = board.getTask(id);
+  const task = board.getTask(id);
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
@@ -311,7 +291,7 @@ app.get('/api/memory/logs', async (req: Request, res: Response) => {
   try {
     const logs = await memory.getRecentLogs(7);
     res.json(logs);
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch logs' });
   }
 });
@@ -324,7 +304,7 @@ app.post('/api/memory/logs', async (req: Request, res: Response) => {
   try {
     await memory.addLog(content, agentId);
     res.status(201).json({ success: true });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to add log' });
   }
 });
@@ -333,7 +313,7 @@ app.get('/api/memory/knowledge', async (req: Request, res: Response) => {
   try {
     const knowledge = await memory.getKnowledge();
     res.json({ content: knowledge });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch knowledge' });
   }
 });
@@ -346,7 +326,7 @@ app.post('/api/memory/knowledge', async (req: Request, res: Response) => {
   try {
     await memory.addKnowledge(content);
     res.status(201).json({ success: true });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to add knowledge' });
   }
 });
@@ -354,7 +334,7 @@ app.post('/api/memory/knowledge', async (req: Request, res: Response) => {
 // Serve Frontend in Production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../../web/dist')));
-  app.get('*', (req, res) => {
+  app.get('*', (_req, res) => {
     res.sendFile(path.join(__dirname, '../../web/dist/index.html'));
   });
 }

@@ -1,4 +1,4 @@
-import { Agent, Task, TaskStatus, AgentStatus, TaskPriority } from './types';
+import { Agent, Task, TaskStatus, TaskPriority } from './types';
 import { randomUUID } from 'crypto';
 
 /**

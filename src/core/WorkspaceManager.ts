@@ -11,7 +11,7 @@ export class WorkspaceManager {
   async ensureBaseDir() {
     try {
       await fs.mkdir(this.baseDir, { recursive: true });
-    } catch (e) {
+    } catch (_e) {
       // Ignore if exists
     }
   }
@@ -23,7 +23,7 @@ export class WorkspaceManager {
     // Clean up old workspace if exists
     try {
       await fs.rm(workspaceDir, { recursive: true, force: true });
-    } catch (e) {
+    } catch (_e) {
       // Ignore
     }
 
