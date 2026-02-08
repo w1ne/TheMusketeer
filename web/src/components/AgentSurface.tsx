@@ -54,17 +54,17 @@ export function AgentSurface({ agentId, agentName, status, currentTask }: AgentS
     };
 
     return (
-        <div className="h-full flex flex-col glass-card rounded-3xl overflow-hidden border-white/5 shadow-2xl">
+        <div className="h-full flex flex-col bg-slate-900 rounded-[2.5rem] overflow-hidden border-2 border-slate-800 shadow-2xl">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 bg-white/5 border-b border-white/5">
-                <div className="flex items-center gap-4">
-                    <div className="p-2.5 bg-blue-500/20 rounded-xl text-blue-400">
-                        <Activity size={20} />
+            <div className="flex items-center justify-between px-8 py-6 bg-slate-800/50 border-b border-slate-700">
+                <div className="flex items-center gap-5">
+                    <div className="p-3 bg-blue-600 rounded-[1.25rem] text-white shadow-lg shadow-blue-900/20">
+                        <Activity size={24} />
                     </div>
                     <div>
-                        <h2 className="text-lg font-black tracking-tight text-white">{agentName}</h2>
-                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
-                            <span className={`w-2 h-2 rounded-full ${status === 'WORKING' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse' : 'bg-slate-600'}`} />
+                        <h2 className="text-xl font-black tracking-tight text-white uppercase italic">{agentName}</h2>
+                        <div className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[0.2em] mt-1">
+                            <span className={`w-3 h-3 rounded-full border-2 border-slate-900 ${status === 'WORKING' ? 'bg-emerald-400 shadow-[0_0_10px_#4ade80] animate-pulse' : 'bg-slate-600'}`} />
                             <span className={status === 'WORKING' ? 'text-emerald-400' : 'text-slate-500'}>
                                 {status || 'OFFLINE'}
                             </span>
@@ -72,46 +72,46 @@ export function AgentSurface({ agentId, agentName, status, currentTask }: AgentS
                     </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-4">
                     <button
                         onClick={handleStart}
                         disabled={status === 'WORKING'}
-                        className="p-3 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl disabled:opacity-20 transition-all text-emerald-400 group active:scale-95"
+                        className="p-4 bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 hover:border-emerald-400 rounded-2xl disabled:opacity-10 transition-all text-emerald-400 hover:text-slate-950 group active:scale-95 shadow-xl"
                         title="Initiate Neural Loop"
                     >
-                        <Play size={18} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+                        <Play size={22} fill="currentColor" className="group-hover:scale-110 transition-transform" />
                     </button>
                     <button
                         onClick={handleStop}
                         disabled={status !== 'WORKING'}
-                        className="p-3 bg-red-500/10 hover:bg-red-500/20 rounded-xl disabled:opacity-20 transition-all text-red-400 group active:scale-95"
+                        className="p-4 bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-400 rounded-2xl disabled:opacity-10 transition-all text-red-400 hover:text-white group active:scale-95 shadow-xl"
                         title="Terminate Loop"
                     >
-                        <Square size={18} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+                        <Square size={22} fill="currentColor" className="group-hover:scale-110 transition-transform" />
                     </button>
                 </div>
             </div>
 
-            {/* Task Info */}
+            {/* Task Mission Banner */}
             <AnimatePresence>
                 {currentTask && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
-                        className="px-6 py-2 bg-blue-500/10 border-b border-blue-500/20 flex items-center gap-3 overflow-hidden"
+                        className="px-8 py-3 bg-blue-600 border-b border-blue-500 flex items-center gap-4 overflow-hidden"
                     >
-                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter shrink-0">MISSION:</span>
-                        <span className="text-xs font-medium text-blue-100 truncate">{currentTask}</span>
+                        <span className="text-xs font-black text-white uppercase tracking-[0.3em] shrink-0 italic">Mission Directive:</span>
+                        <span className="text-sm font-bold text-blue-50 truncate">{currentTask}</span>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Terminal */}
-            <div className="flex-1 p-6 bg-slate-950/80 font-mono text-[13px] overflow-y-auto custom-scrollbar" ref={scrollRef}>
+            {/* High-Contrast Terminal */}
+            <div className="flex-1 p-8 bg-[#020617] font-mono text-[14px] overflow-y-auto custom-scrollbar" ref={scrollRef}>
                 {logs.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-700 opacity-50">
-                        <Terminal size={32} className="mb-2" />
-                        <div className="text-xs uppercase tracking-widest font-bold">Awaiting Telemetry...</div>
+                    <div className="h-full flex flex-col items-center justify-center text-slate-800">
+                        <Terminal size={48} className="mb-4 opacity-50" />
+                        <div className="text-xs uppercase tracking-[0.4em] font-black opacity-50">Awaiting Telemetry Stream...</div>
                     </div>
                 ) : (
                     logs.map((log, i) => (
@@ -119,12 +119,12 @@ export function AgentSurface({ agentId, agentName, status, currentTask }: AgentS
                             key={i}
                             initial={{ x: -10, opacity: 0 }}
                             animate={{ x: 0, opacity: 1 }}
-                            className="mb-2 flex gap-4 group"
+                            className="mb-3 flex gap-6 group"
                         >
-                            <span className="text-slate-600 select-none shrink-0 group-hover:text-slate-400 transition-colors">
-                                {typeof log === 'string' ? log.split(']')[0].replace('[', '') : new Date(log.timestamp).toLocaleTimeString()}
+                            <span className="text-slate-600 select-none shrink-0 font-bold tracking-tighter w-20">
+                                {typeof log === 'string' ? log.split(']')[0].replace('[', '') : new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}
                             </span>
-                            <span className="text-slate-100 leading-relaxed font-medium">
+                            <span className="text-slate-100 leading-relaxed font-bold break-words flex-1">
                                 {typeof log === 'string' ? log.split(']').slice(1).join(']') : log.content}
                             </span>
                         </motion.div>
@@ -132,9 +132,9 @@ export function AgentSurface({ agentId, agentName, status, currentTask }: AgentS
                 )}
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-2 text-[10px] font-black text-center text-slate-600 bg-white/5 border-t border-white/5 uppercase tracking-[0.2em]">
-                Musketeer Protocol Syncing • v1.0.0
+            {/* Enhanced Footer */}
+            <div className="px-8 py-3 text-[10px] font-black text-center text-slate-500 bg-slate-900 border-t border-slate-800 uppercase tracking-[0.4em]">
+                Musketeer Protocol v1.4.2 • Swarm Linked
             </div>
         </div>
     );
