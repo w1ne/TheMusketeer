@@ -34,6 +34,20 @@ export async function createTask(title: string, priority: string) {
   return res.json();
 }
 
+export async function deleteTask(id: string) {
+  const res = await fetch(`${API_URL}/tasks/${id}`, {
+    method: 'DELETE',
+  });
+  return res.json();
+}
+
+export async function archiveTask(id: string) {
+  const res = await fetch(`${API_URL}/tasks/${id}/archive`, {
+    method: 'PATCH',
+  });
+  return res.json();
+}
+
 export async function spawnAgent(
   name: string,
   provider: string = 'gemini',
