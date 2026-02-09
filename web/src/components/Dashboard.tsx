@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { fetchTasks, fetchAgents, createTask, spawnAgent, fetchModels } from '../api/client';
+import { fetchTasks, fetchAgents, createTask, spawnAgent, fetchModels, archiveTask, deleteTask } from '../api/client';
 import { AgentSurface } from './AgentSurface';
 import { TaskDetailsModal } from './TaskDetailsModal';
-import { Plus, LayoutGrid, List, X, Loader2, Terminal } from 'lucide-react';
+import { UsageStats } from './UsageStats';
+import { Plus, LayoutGrid, List, X, Loader2, Terminal, CheckCircle2, Trash2, Archive, CheckSquare, Square } from 'lucide-react';
 import { useGoogleAccount } from '../contexts/GoogleAccountContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -16,6 +17,7 @@ export function Dashboard() {
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
 
     // Form states
     const [taskTitle, setTaskTitle] = useState('');
@@ -67,6 +69,53 @@ export function Dashboard() {
         }
     };
 
+    const toggleTaskSelection = (id: string) => {
+        const next = new Set(selectedTaskIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedTaskIds(next);
+    };
+
+    const toggleSelectAll = (status: string) => {
+        const columnTasks = tasks.filter(t => {
+            if (status === 'TODO') return t.status === 'TODO' && t.status !== 'ARCHIVED';
+            if (status === 'IN_PROGRESS') return (t.status === 'IN_PROGRESS' || t.status === 'AWAITING_INPUT') && t.status !== 'ARCHIVED';
+            if (status === 'DONE') return t.status === 'DONE' && t.status !== 'ARCHIVED';
+            return false;
+        });
+
+        const allSelected = columnTasks.every(t => selectedTaskIds.has(t.id));
+        const next = new Set(selectedTaskIds);
+
+        if (allSelected) {
+            columnTasks.forEach(t => next.delete(t.id));
+        } else {
+            columnTasks.forEach(t => next.add(t.id));
+        }
+        setSelectedTaskIds(next);
+    };
+
+    const handleBatchArchive = async () => {
+        setIsLoading(true);
+        try {
+            await Promise.all(Array.from(selectedTaskIds).map(id => archiveTask(id)));
+            setSelectedTaskIds(new Set());
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleBatchDelete = async () => {
+        if (!confirm(`Are you sure you want to delete ${selectedTaskIds.size} tasks?`)) return;
+        setIsLoading(true);
+        try {
+            await Promise.all(Array.from(selectedTaskIds).map(id => deleteTask(id)));
+            setSelectedTaskIds(new Set());
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const selectedAgent = agents.find(a => a.id === selectedAgentId);
 
     return (
@@ -98,11 +147,25 @@ export function Dashboard() {
                         <h4 className="flex items-center gap-2 text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-2 px-2">
                             <div className="w-2 h-2 rounded-full bg-slate-500" />
                             To Do
+                            <button
+                                onClick={(e) => { e.stopPropagation(); toggleSelectAll('TODO'); }}
+                                className="ml-2 hover:text-white transition-colors p-1"
+                                title="Select All in Column"
+                            >
+                                <CheckSquare size={14} />
+                            </button>
                             <span className="ml-auto bg-slate-800 text-white px-2 py-0.5 rounded-md">{tasks.filter(t => t.status === 'TODO' && t.status !== 'ARCHIVED').length}</span>
                         </h4>
                         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
                             {tasks.filter(t => t.status === 'TODO' && t.status !== 'ARCHIVED').map(task => (
-                                <TaskCard key={task.id} task={task} onClick={() => setSelectedTask(task)} />
+                                <TaskCard
+                                    key={task.id}
+                                    task={task}
+                                    agents={agents}
+                                    isSelected={selectedTaskIds.has(task.id)}
+                                    onSelect={() => toggleTaskSelection(task.id)}
+                                    onClick={() => setSelectedTask(task)}
+                                />
                             ))}
                         </div>
                     </div>
@@ -112,11 +175,25 @@ export function Dashboard() {
                         <h4 className="flex items-center gap-2 text-xs font-black text-blue-400 uppercase tracking-[0.2em] mb-2 px-2">
                             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
                             In Progress
+                            <button
+                                onClick={(e) => { e.stopPropagation(); toggleSelectAll('IN_PROGRESS'); }}
+                                className="ml-2 hover:text-blue-200 transition-colors p-1"
+                                title="Select All in Column"
+                            >
+                                <CheckSquare size={14} />
+                            </button>
                             <span className="ml-auto bg-blue-900/50 text-blue-200 px-2 py-0.5 rounded-md">{tasks.filter(t => (t.status === 'IN_PROGRESS' || t.status === 'AWAITING_INPUT') && t.status !== 'ARCHIVED').length}</span>
                         </h4>
                         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
                             {tasks.filter(t => (t.status === 'IN_PROGRESS' || t.status === 'AWAITING_INPUT') && t.status !== 'ARCHIVED').map(task => (
-                                <TaskCard key={task.id} task={task} onClick={() => setSelectedTask(task)} />
+                                <TaskCard
+                                    key={task.id}
+                                    task={task}
+                                    agents={agents}
+                                    isSelected={selectedTaskIds.has(task.id)}
+                                    onSelect={() => toggleTaskSelection(task.id)}
+                                    onClick={() => setSelectedTask(task)}
+                                />
                             ))}
                         </div>
                     </div>
@@ -126,21 +203,39 @@ export function Dashboard() {
                         <h4 className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase tracking-[0.2em] mb-2 px-2">
                             <div className="w-2 h-2 rounded-full bg-emerald-400" />
                             Done
+                            <button
+                                onClick={(e) => { e.stopPropagation(); toggleSelectAll('DONE'); }}
+                                className="ml-2 hover:text-emerald-200 transition-colors p-1"
+                                title="Select All in Column"
+                            >
+                                <CheckSquare size={14} />
+                            </button>
                             <span className="ml-auto bg-emerald-900/50 text-emerald-200 px-2 py-0.5 rounded-md">{tasks.filter(t => t.status === 'DONE' && t.status !== 'ARCHIVED').length}</span>
                         </h4>
                         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
                             {tasks.filter(t => t.status === 'DONE' && t.status !== 'ARCHIVED').map(task => (
-                                <TaskCard key={task.id} task={task} showResult onClick={() => setSelectedTask(task)} />
+                                <TaskCard
+                                    key={task.id}
+                                    task={task}
+                                    agents={agents}
+                                    showResult
+                                    isSelected={selectedTaskIds.has(task.id)}
+                                    onSelect={() => toggleTaskSelection(task.id)}
+                                    onClick={() => setSelectedTask(task)}
+                                />
                             ))}
                         </div>
                     </div>
                 </div>
 
-                <div className="mt-auto p-5 rounded-3xl bg-slate-800/80 border border-slate-700 shadow-inner">
-                    <h3 className="text-lg font-black text-white">Musketeer Command</h3>
-                    <p className="text-xs font-medium text-slate-400 mt-2 leading-relaxed">
-                        Currently monitoring <span className="text-white font-bold">{agents.length}</span> active operatives. Synchronized with the Swarm Core.
-                    </p>
+                <div className="mt-auto space-y-6">
+                    <UsageStats />
+                    <div className="p-5 rounded-3xl bg-slate-800/80 border border-slate-700 shadow-inner">
+                        <h3 className="text-lg font-black text-white">Musketeer Command</h3>
+                        <p className="text-xs font-medium text-slate-400 mt-2 leading-relaxed">
+                            Currently monitoring <span className="text-white font-bold">{agents.length}</span> active operatives. Synchronized with the Swarm Core.
+                        </p>
+                    </div>
                 </div>
             </motion.div>
 
@@ -337,6 +432,46 @@ export function Dashboard() {
                 )}
             </AnimatePresence>
 
+            {/* Batch Action Toolbar */}
+            <AnimatePresence>
+                {selectedTaskIds.size > 0 && (
+                    <motion.div
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 100, opacity: 0 }}
+                        className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-6 px-10 py-5 bg-slate-900/90 backdrop-blur-2xl border-2 border-blue-500/50 rounded-full shadow-[0_20px_60px_rgba(0,0,0,0.5)] border-glow"
+                    >
+                        <div className="flex items-center gap-4 border-r border-slate-700 pr-6">
+                            <div data-testid="selected-count" className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-blue-500/20">
+                                {selectedTaskIds.size}
+                            </div>
+                            <div className="text-sm font-black text-white uppercase tracking-widest italic">Tasks Selected</div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={handleBatchArchive}
+                                className="flex items-center gap-2 px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-slate-700"
+                            >
+                                <Archive size={16} /> Archive All
+                            </button>
+                            <button
+                                onClick={handleBatchDelete}
+                                className="flex items-center gap-2 px-6 py-2 bg-red-950/30 hover:bg-red-950/50 text-red-400 hover:text-red-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-red-900/30"
+                            >
+                                <Trash2 size={16} /> Delete All
+                            </button>
+                            <button
+                                onClick={() => setSelectedTaskIds(new Set())}
+                                className="p-2 text-slate-500 hover:text-white transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <AnimatePresence>
                 {selectedTask && (
                     <TaskDetailsModal task={selectedTask} onClose={() => setSelectedTask(null)} />
@@ -346,20 +481,30 @@ export function Dashboard() {
     );
 }
 
-function TaskCard({ task, showResult, onClick }: { task: any, showResult?: boolean, onClick?: () => void }) {
+function TaskCard({ task, agents, showResult, isSelected, onSelect, onClick }: { task: any, agents: any[], showResult?: boolean, isSelected: boolean, onSelect: () => void, onClick?: () => void }) {
+    const assignedAgent = agents.find(a => a.id === task.assignedAgentId);
+
     return (
         <motion.div
             layoutId={task.id}
             onClick={onClick}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer group relative overflow-hidden flex flex-col gap-3 ${task.status === 'DONE'
-                ? 'bg-emerald-900/20 border-emerald-900/50 hover:border-emerald-500/50'
-                : task.status === 'IN_PROGRESS'
-                    ? 'bg-blue-900/20 border-blue-900/50 hover:border-blue-500/50'
-                    : 'bg-slate-800/50 border-slate-700 hover:border-slate-500'
+            className={`p-4 rounded-2xl border transition-all cursor-pointer group relative overflow-hidden flex flex-col gap-3 ${isSelected
+                ? 'bg-blue-600/20 border-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.15)]'
+                : task.status === 'DONE'
+                    ? 'bg-emerald-900/20 border-emerald-900/50 hover:border-emerald-500/50'
+                    : task.status === 'IN_PROGRESS'
+                        ? 'bg-blue-900/20 border-blue-900/50 hover:border-blue-500/50'
+                        : 'bg-slate-800/50 border-slate-700 hover:border-slate-500'
                 }`}
         >
+            <div
+                className={`absolute top-3 right-3 z-10 p-1.5 rounded-lg transition-all ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-900/80 text-slate-500 opacity-0 group-hover:opacity-100 hover:text-white'}`}
+                onClick={(e) => { e.stopPropagation(); onSelect(); }}
+            >
+                {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+            </div>
             <div className="flex justify-between items-start">
                 <span className={`text-[9px] px-2 py-0.5 rounded-md font-black uppercase tracking-wider ${task.priority === 'HIGH' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
                     task.priority === 'LOW' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
@@ -367,9 +512,10 @@ function TaskCard({ task, showResult, onClick }: { task: any, showResult?: boole
                     }`}>
                     {task.priority}
                 </span>
-                {task.assignedAgentId && (
-                    <span className="text-[9px] font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                        OP:{task.assignedAgentId.slice(0, 4)}
+                {assignedAgent && (
+                    <span className="text-[9px] font-black text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1.5 shadow-lg uppercase tracking-wider">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#4ade80]" />
+                        {assignedAgent.name}
                     </span>
                 )}
             </div>
