@@ -1,6 +1,13 @@
 import fs from 'fs';
 import path from 'path';
-import { Agent, Task, TaskStatus, TaskPriority } from './types';
+import {
+  Agent,
+  Task,
+  TaskStatus,
+  TaskPriority,
+  AgentStatus,
+  Artifact,
+} from './types';
 import { randomUUID } from 'crypto';
 
 const DATA_DIR = path.resolve(process.cwd(), '.agent/data');
@@ -63,6 +70,9 @@ export class KanbanBoard {
       dependencies: [],
       subtasks: [],
       parentId,
+      validationStatus: 'PENDING',
+      retryCount: 0,
+      branchName: `agent/${id.substring(0, 8)}`, // Default branch name
     };
 
     this.tasks.set(id, task);
@@ -105,13 +115,29 @@ export class KanbanBoard {
 
   updateTaskStatus(
     id: string,
-    status: TaskStatus,
+    status?: TaskStatus,
     message?: string,
+    result?: string,
+    artifacts?: Artifact[],
+    progress?: string,
   ): Task | undefined {
     const task = this.tasks.get(id);
     if (task) {
-      task.status = status;
+      if (status !== undefined) task.status = status;
       if (message !== undefined) task.statusMessage = message;
+      if (result !== undefined) task.result = result;
+      if (progress !== undefined) task.progress = progress;
+      if (artifacts !== undefined) {
+        // Append or replace? Let's append if it exists, roughly, or just replace for simplicity in this MVP.
+        // Actually, let's treat it as a replace/update for now to keep API simple.
+        // Or better: if artifacts are sent, they are added to the list.
+        const existing = task.artifacts || [];
+        // deduplicate by ID
+        const newArtifacts = [...existing, ...artifacts].filter(
+          (a, i, self) => i === self.findIndex((t) => t.id === a.id),
+        );
+        task.artifacts = newArtifacts;
+      }
       this.tasks.set(id, task);
       this.saveState();
     }
@@ -125,6 +151,26 @@ export class KanbanBoard {
       this.tasks.set(id, task);
       this.saveState();
     }
+  }
+
+  deleteTask(id: string): boolean {
+    if (this.tasks.has(id)) {
+      this.tasks.delete(id);
+      this.saveState();
+      return true;
+    }
+    return false;
+  }
+
+  archiveTask(id: string): boolean {
+    const task = this.tasks.get(id);
+    if (task) {
+      task.status = 'ARCHIVED';
+      this.tasks.set(id, task);
+      this.saveState();
+      return true;
+    }
+    return false;
   }
 
   // --- Agents ---
@@ -159,6 +205,30 @@ export class KanbanBoard {
 
   getAgent(id: string): Agent | undefined {
     return this.agents.get(id);
+  }
+
+  removeAgent(id: string): boolean {
+    if (this.agents.has(id)) {
+      this.agents.delete(id);
+      this.saveState();
+      return true;
+    }
+    return false;
+  }
+
+  updateAgent(id: string, updates: Partial<Agent>): Agent | undefined {
+    const agent = this.agents.get(id);
+    if (agent) {
+      if (updates.name) agent.name = updates.name;
+      if (updates.status) agent.status = updates.status;
+      if (updates.config) {
+        agent.config = { ...agent.config, ...updates.config };
+      }
+      this.agents.set(id, agent);
+      this.saveState();
+      return agent;
+    }
+    return undefined;
   }
 
   updateAgentActivity(id: string, activity: string): void {
@@ -211,6 +281,9 @@ export class KanbanBoard {
 
       task.status = 'IN_PROGRESS';
       task.assignedAgentId = agent.id;
+      task.validationStatus = 'PENDING'; // Reset validation status on new assignment
+      // We do NOT reset retryCount here, as retries are global for the task?
+      // Actually, if a new agent takes it, maybe we should keep the history.
 
       agent.status = 'WORKING';
       agent.currentTaskId = task.id;

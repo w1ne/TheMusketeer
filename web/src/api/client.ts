@@ -10,6 +10,21 @@ export async function fetchAgents() {
   return res.json();
 }
 
+export async function fetchModels() {
+  const res = await fetch(`${API_URL}/models`);
+  return res.json();
+}
+
+export async function fetchProviders() {
+  const res = await fetch(`${API_URL}/providers`);
+  return res.json();
+}
+
+export async function fetchUsage() {
+  const res = await fetch(`${API_URL}/usage`);
+  return res.json();
+}
+
 export async function createTask(title: string, priority: string) {
   const res = await fetch(`${API_URL}/tasks`, {
     method: 'POST',
@@ -19,11 +34,31 @@ export async function createTask(title: string, priority: string) {
   return res.json();
 }
 
-export async function spawnAgent(name: string) {
+export async function spawnAgent(
+  name: string,
+  provider: string = 'gemini',
+  model: string = 'auto',
+) {
   const res = await fetch(`${API_URL}/agents`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, provider, model }),
+  });
+  return res.json();
+}
+
+export async function updateAgent(id: string, updates: any) {
+  const res = await fetch(`${API_URL}/agents/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  return res.json();
+}
+
+export async function deleteAgent(id: string) {
+  const res = await fetch(`${API_URL}/agents/${id}`, {
+    method: 'DELETE',
   });
   return res.json();
 }

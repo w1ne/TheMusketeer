@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { fetchTasks, fetchAgents, createTask, spawnAgent } from '../api/client';
+import { fetchTasks, fetchAgents, createTask, spawnAgent, fetchModels } from '../api/client';
 import { AgentSurface } from './AgentSurface';
+import { TaskDetailsModal } from './TaskDetailsModal';
 import { Plus, LayoutGrid, List, X, Loader2, Terminal } from 'lucide-react';
 import { useGoogleAccount } from '../contexts/GoogleAccountContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 
 export function Dashboard() {
     useGoogleAccount();
     const [tasks, setTasks] = useState<any[]>([]);
     const [agents, setAgents] = useState<any[]>([]);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+    const [selectedTask, setSelectedTask] = useState<any>(null);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -18,14 +21,17 @@ export function Dashboard() {
     const [taskTitle, setTaskTitle] = useState('');
     const [taskPriority, setTaskPriority] = useState('MEDIUM');
     const [agentName, setAgentName] = useState('');
+    const [agentModel, setAgentModel] = useState('auto');
+    const [availableModels, setAvailableModels] = useState<any[]>([]);
 
     // Polling for data
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [t, a] = await Promise.all([fetchTasks(), fetchAgents()]);
+                const [t, a, m] = await Promise.all([fetchTasks(), fetchAgents(), fetchModels()]);
                 setTasks(t);
                 setAgents(a);
+                setAvailableModels(m);
             } catch (e) { console.error(e); }
         };
 
@@ -52,9 +58,10 @@ export function Dashboard() {
         if (!agentName) return;
         setIsLoading(true);
         try {
-            await spawnAgent(agentName);
+            await spawnAgent(agentName, 'gemini', agentModel);
             setIsAgentModalOpen(false);
             setAgentName('');
+            setAgentModel('auto');
         } finally {
             setIsLoading(false);
         }
@@ -68,7 +75,7 @@ export function Dashboard() {
             <motion.div
                 initial={{ x: -20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                className="flex-1 flex flex-col border-r border-slate-800 min-w-[400px] max-w-xl bg-slate-900/80 backdrop-blur-xl p-8 gap-8"
+                className="flex-[2] flex flex-col border-r border-slate-800 bg-slate-900/80 backdrop-blur-xl p-8 gap-8"
             >
                 <div className="flex justify-between items-center">
                     <h2 className="text-3xl font-black flex items-center gap-4 tracking-tighter text-white">
@@ -85,48 +92,48 @@ export function Dashboard() {
                     </button>
                 </div>
 
-                <div className="space-y-6 overflow-y-auto pr-4 custom-scrollbar">
-                    <AnimatePresence>
-                        {tasks.map((task, idx) => (
-                            <motion.div
-                                key={task.id}
-                                initial={{ y: 10, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: idx * 0.05 }}
-                                className="p-5 rounded-2xl bg-slate-800/50 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 transition-all cursor-pointer group relative overflow-hidden"
-                            >
-                                <div className="flex justify-between items-start mb-3">
-                                    <span className={`text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest ${task.priority === 'HIGH' ? 'bg-red-600 text-white' :
-                                        task.priority === 'LOW' ? 'bg-emerald-600 text-white' :
-                                            'bg-blue-600 text-white'
-                                        }`}>
-                                        {task.priority}
-                                    </span>
-                                    <span className="text-slate-400 text-[10px] font-mono font-bold tracking-widest">#{task.id.slice(0, 6)}</span>
-                                </div>
-                                <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">{task.title}</h3>
-                                <div className="mt-4 text-xs font-bold text-slate-300 flex justify-between items-center">
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${task.status === 'DONE' ? 'bg-emerald-400 shadow-[0_0_8px_#4ade80]' :
-                                            task.status === 'AWAITING_INPUT' ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24] animate-pulse' :
-                                                'bg-blue-400'
-                                            } shadow-sm`} />
-                                        <div className="flex flex-col">
-                                            <span className={`uppercase tracking-wider ${task.status === 'AWAITING_INPUT' ? 'text-amber-400' :
-                                                task.status === 'DONE' ? 'text-emerald-400' : ''
-                                                }`}>{task.status.replace('_', ' ')}</span>
-                                            {task.status === 'AWAITING_INPUT' && task.statusMessage && (
-                                                <span className="text-[9px] text-amber-500/80 font-medium italic mt-0.5">{task.statusMessage}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {task.assignedAgentId && (
-                                        <span className="px-2 py-0.5 rounded-md bg-slate-700 text-slate-300 border border-slate-600 uppercase text-[9px] tracking-widest">Assigned</span>
-                                    )}
-                                </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
+                <div className="flex-1 min-h-0 grid grid-cols-3 gap-4 overflow-hidden">
+                    {/* TODO Column */}
+                    <div className="flex flex-col gap-4 min-h-0 bg-slate-900/50 p-4 rounded-3xl border border-slate-800">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-2 px-2">
+                            <div className="w-2 h-2 rounded-full bg-slate-500" />
+                            To Do
+                            <span className="ml-auto bg-slate-800 text-white px-2 py-0.5 rounded-md">{tasks.filter(t => t.status === 'TODO' && t.status !== 'ARCHIVED').length}</span>
+                        </h4>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                            {tasks.filter(t => t.status === 'TODO' && t.status !== 'ARCHIVED').map(task => (
+                                <TaskCard key={task.id} task={task} onClick={() => setSelectedTask(task)} />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* IN PROGRESS Column */}
+                    <div className="flex flex-col gap-4 min-h-0 bg-blue-900/10 p-4 rounded-3xl border border-blue-900/30">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-blue-400 uppercase tracking-[0.2em] mb-2 px-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                            In Progress
+                            <span className="ml-auto bg-blue-900/50 text-blue-200 px-2 py-0.5 rounded-md">{tasks.filter(t => (t.status === 'IN_PROGRESS' || t.status === 'AWAITING_INPUT') && t.status !== 'ARCHIVED').length}</span>
+                        </h4>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                            {tasks.filter(t => (t.status === 'IN_PROGRESS' || t.status === 'AWAITING_INPUT') && t.status !== 'ARCHIVED').map(task => (
+                                <TaskCard key={task.id} task={task} onClick={() => setSelectedTask(task)} />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* DONE Column */}
+                    <div className="flex flex-col gap-4 min-h-0 bg-emerald-900/10 p-4 rounded-3xl border border-emerald-900/30">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase tracking-[0.2em] mb-2 px-2">
+                            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                            Done
+                            <span className="ml-auto bg-emerald-900/50 text-emerald-200 px-2 py-0.5 rounded-md">{tasks.filter(t => t.status === 'DONE' && t.status !== 'ARCHIVED').length}</span>
+                        </h4>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                            {tasks.filter(t => t.status === 'DONE' && t.status !== 'ARCHIVED').map(task => (
+                                <TaskCard key={task.id} task={task} showResult onClick={() => setSelectedTask(task)} />
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="mt-auto p-5 rounded-3xl bg-slate-800/80 border border-slate-700 shadow-inner">
@@ -306,6 +313,18 @@ export function Dashboard() {
                                         placeholder="e.g. D'ARTAGNAN, ATHOS..."
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-3">Model Protocol</label>
+                                    <select
+                                        value={agentModel}
+                                        onChange={e => setAgentModel(e.target.value)}
+                                        className="w-full bg-slate-950 border-2 border-slate-800 rounded-2xl px-6 py-5 text-base text-white font-bold focus:border-slate-400 outline-none transition-all appearance-none cursor-pointer"
+                                    >
+                                        {availableModels.map(m => (
+                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <button
                                     disabled={isLoading}
                                     className="w-full py-5 bg-white rounded-2xl font-black text-base uppercase tracking-[0.2em] text-slate-950 hover:bg-slate-200 transition-all flex items-center justify-center gap-4 active:scale-[0.98] shadow-2xl"
@@ -317,6 +336,60 @@ export function Dashboard() {
                     </div>
                 )}
             </AnimatePresence>
+
+            <AnimatePresence>
+                {selectedTask && (
+                    <TaskDetailsModal task={selectedTask} onClose={() => setSelectedTask(null)} />
+                )}
+            </AnimatePresence>
         </div>
+    );
+}
+
+function TaskCard({ task, showResult, onClick }: { task: any, showResult?: boolean, onClick?: () => void }) {
+    return (
+        <motion.div
+            layoutId={task.id}
+            onClick={onClick}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer group relative overflow-hidden flex flex-col gap-3 ${task.status === 'DONE'
+                ? 'bg-emerald-900/20 border-emerald-900/50 hover:border-emerald-500/50'
+                : task.status === 'IN_PROGRESS'
+                    ? 'bg-blue-900/20 border-blue-900/50 hover:border-blue-500/50'
+                    : 'bg-slate-800/50 border-slate-700 hover:border-slate-500'
+                }`}
+        >
+            <div className="flex justify-between items-start">
+                <span className={`text-[9px] px-2 py-0.5 rounded-md font-black uppercase tracking-wider ${task.priority === 'HIGH' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                    task.priority === 'LOW' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                        'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    }`}>
+                    {task.priority}
+                </span>
+                {task.assignedAgentId && (
+                    <span className="text-[9px] font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                        OP:{task.assignedAgentId.slice(0, 4)}
+                    </span>
+                )}
+            </div>
+
+            <h3 className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors leading-snug">
+                {task.title}
+            </h3>
+
+            {task.statusMessage && task.status !== 'DONE' && (
+                <div className="text-[10px] text-slate-400 italic bg-slate-950/30 p-2 rounded-lg border border-slate-800/50">
+                    "{task.statusMessage}"
+                </div>
+            )}
+
+            {showResult && task.result && (
+                <div className="mt-1 text-[10px] bg-emerald-950/40 p-3 rounded-xl border border-emerald-900/50 text-emerald-200/80 font-mono markdown-content">
+                    <div className="text-[9px] uppercase tracking-widest text-emerald-500 font-black mb-1">Result</div>
+                    <ReactMarkdown>{task.result}</ReactMarkdown>
+                </div>
+            )}
+        </motion.div>
     );
 }

@@ -3,30 +3,74 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import os from 'os';
+import { execSync } from 'child_process';
 import fs_sync from 'fs';
 import fs from 'fs/promises';
 import { board } from '../core/KanbanBoard';
 import { memory } from '../core/MemoryStore';
 import { AgentLoop } from '../core/AgentLoop';
 import { mcpManager } from '../core/mcp/MCPManager';
-import { UserAccountManager } from '@google/gemini-cli-core';
+import {
+  UserAccountManager,
+  DEFAULT_MODEL_CONFIGS,
+  getDisplayString,
+} from '@google/gemini-cli-core';
 import { workspaceManager } from '../core/WorkspaceManager';
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Global error handling to prevent server crashes from child processes
+process.on('uncaughtException', (err) => {
+  console.error('[Fatal] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Fatal] Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 app.use(express.json());
 app.use(cors());
 app.use(helmet());
 
 // Initialize MCP
-const mcpConfigPath = path.resolve(process.cwd(), '.agent/mcp.json');
-mcpManager.loadConfig(mcpConfigPath).then(() => {
-  console.log('MCP Managers Initialized');
-});
+if (process.env.NODE_ENV !== 'test') {
+  const mcpConfigPath = path.resolve(process.cwd(), '.agent/mcp.json');
+  mcpManager.loadConfig(mcpConfigPath).then(() => {
+    console.log('MCP Managers Initialized');
+  });
+}
 
 // Map to store active loops
 const activeLoops: Map<string, AgentLoop> = new Map();
+
+/**
+ * Automatically resume agent execution loops for agents that were
+ * in WORKING state before a server restart/crash.
+ */
+function bootstrapAgentLoops() {
+  const agents = board.getAgents();
+  let resumedCount = 0;
+  for (const agent of agents) {
+    if (agent.status === 'WORKING' && agent.currentTaskId) {
+      console.log(
+        `[Bootstrap] Resuming agent loop for ${agent.name} (${agent.id})`,
+      );
+      const loop = new AgentLoop(agent.id);
+      activeLoops.set(agent.id, loop);
+      loop.start().catch((err) => {
+        console.error(`[Bootstrap] Agent loop ${agent.id} failed:`, err);
+        activeLoops.delete(agent.id);
+      });
+      resumedCount++;
+    }
+  }
+  if (resumedCount > 0) {
+    console.log(
+      `[Bootstrap] Successfully resumed ${resumedCount} agent loops.`,
+    );
+  }
+}
 
 // --- Auth Store ---
 interface User {
@@ -36,7 +80,69 @@ interface User {
   apiKey: string;
 }
 
+// --- Antigravity Discovery ---
+
+let agServer: { ports: number[]; token: string } | null = null;
+
+function discoverAntigravityServer() {
+  try {
+    const output = execSync(
+      'ps aux | grep "[l]anguage_server" | grep "antigravity"',
+    ).toString();
+    const lines = output
+      .split('\n')
+      .filter((l) => l.includes('--extension_server_port'));
+
+    if (lines.length > 0) {
+      const line = lines[0];
+      const tokenMatch = line.match(/--csrf_token[ =]([a-f0-9-]+)/);
+      const portMatch = line.match(/--extension_server_port[ =](\d+)/);
+
+      if (tokenMatch) {
+        const token = tokenMatch[1];
+        // Find ALL listening ports for this process
+        const pidMatch = line.trim().split(/\s+/)[1];
+        const ports: number[] = [];
+
+        if (portMatch) ports.push(parseInt(portMatch[1], 10));
+
+        try {
+          const lsofOutput = execSync(
+            `lsof -nP -iTCP -sTCP:LISTEN -p ${pidMatch}`,
+          ).toString();
+          const lsofLines = lsofOutput.split('\n');
+          for (const l of lsofLines) {
+            const m = l.match(/:(\d+)\s+\(LISTEN\)/);
+            if (m) {
+              const p = parseInt(m[1], 10);
+              if (!ports.includes(p)) ports.push(p);
+            }
+          }
+        } catch (e) {
+          // lsof might fail or not be present, fallback to the one from ps
+        }
+
+        agServer = { ports, token };
+        console.log(
+          `[Discovery] Found Antigravity Server. Ports: ${ports.join(', ')}`,
+        );
+        return;
+      }
+    }
+  } catch (e: any) {
+    // console.warn('[Discovery] Failed to find Antigravity Server via ps');
+  }
+}
+
+// Initial discovery
+if (process.env.NODE_ENV !== 'test') {
+  discoverAntigravityServer();
+  // Refresh every 5 minutes
+  setInterval(discoverAntigravityServer, 5 * 60 * 1000);
+}
+
 const userStore = {
+  // ... existing userStore code
   users: new Map<string, User>(), // email -> User
   activeEmail: '',
 
@@ -46,47 +152,122 @@ const userStore = {
   },
 
   syncWithAntigravity(): boolean {
-    const vscdbPath = path.join(
-      os.homedir(),
-      '.config/Code/User/globalStorage/state.vscdb',
-    );
-    if (!fs_sync.existsSync(vscdbPath)) return false;
+    const paths = [
+      path.join(
+        os.homedir(),
+        '.config/Antigravity/User/globalStorage/state.vscdb',
+      ),
+      path.join(os.homedir(), '.config/Code/User/globalStorage/state.vscdb'),
+    ];
+
+    let vscdbPath = '';
+    for (const p of paths) {
+      if (fs_sync.existsSync(p)) {
+        vscdbPath = p;
+        break;
+      }
+    }
+
+    if (!vscdbPath) return false;
 
     try {
       const buffer = fs_sync.readFileSync(vscdbPath);
       const content = buffer.toString('binary');
-      const emailMatch = content.match(/[a-zA-Z0-9._%+-]+@gmail\.com/);
+
+      // Look for the specific key that holds the active user state
+      // The format in the database holds the JSON object.
+      // We use a broader match and try to find the first valid JSON block.
+      const match = content.match(/antigravityAuthStatus(\{.*?\})/);
+
+      if (match && match[1]) {
+        try {
+          const cleanJson = match[1].replace(/[^\x20-\x7E]/g, '');
+          const userData = JSON.parse(cleanJson);
+          if (userData.email && userData.name) {
+            const email = userData.email;
+            const name = userData.name;
+            const rawApiKey = userData.apiKey || '';
+            const apiKey = rawApiKey.startsWith('AIza') ? rawApiKey : '';
+            const user: User = {
+              name,
+              email,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+              apiKey,
+            };
+            this.users.set(email, user);
+            this.activeEmail = email;
+            if (apiKey && apiKey.startsWith('AIza')) {
+              process.env.GEMINI_API_KEY = apiKey;
+              process.env.GOOGLE_API_KEY = apiKey;
+              console.log(
+                `[Auth] Propagating inherited API key to environment: ${email}`,
+              );
+            } else if (email) {
+              console.log(
+                `[Auth] Using account-based auth for: ${email} (no valid API key found)`,
+              );
+            }
+            console.log(
+              `[Auth] Inherited Antigravity Identity: ${name} (${email})`,
+            );
+            return true;
+          }
+        } catch (e: any) {
+          // skip
+        }
+      }
+
+      // Fallback: If specific key not found, try the old regex
+      const emailMatch = content.match(
+        /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+      );
 
       if (emailMatch) {
         const email = emailMatch[0];
-        const name = email.split('@')[0].toUpperCase();
-        const apiKeyMatch = content.match(
-          /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/,
-        );
-        const apiKey = apiKeyMatch ? apiKeyMatch[0] : '';
+        if (!email.includes('google.com') && !email.includes('example.com')) {
+          const name = email.split('@')[0].toUpperCase();
+          const apiKeyMatch = content.match(
+            /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/,
+          );
+          const rawApiKey = apiKeyMatch ? apiKeyMatch[0] : '';
+          const apiKey = rawApiKey.startsWith('AIza') ? rawApiKey : '';
 
-        const user: User = {
-          name,
-          email,
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
-          apiKey,
-        };
-        this.users.set(email, user);
-        this.activeEmail = email;
-        console.log(
-          `[Auth] Inherited Antigravity Identity: ${name} (${email})`,
-        );
-        return true;
+          const user: User = {
+            name,
+            email,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+            apiKey,
+          };
+          this.users.set(email, user);
+          this.activeEmail = email;
+          if (apiKey && apiKey.startsWith('AIza')) {
+            process.env.GEMINI_API_KEY = apiKey;
+            process.env.GOOGLE_API_KEY = apiKey;
+            console.log(
+              `[Auth] Propagating inherited API key (fallback) to environment: ${email}`,
+            );
+          } else if (email) {
+            console.log(
+              `[Auth] Using account-based auth (fallback) for: ${email}`,
+            );
+          }
+          console.log(
+            `[Auth] Inherited Identity (Fallback): ${name} (${email})`,
+          );
+          return true;
+        }
       }
     } catch (_e: any) {
-      console.warn('[Auth] Antigravity sync skipped');
+      console.warn('[Auth] Antigravity sync skipped', _e);
     }
     return false;
   },
 
   syncWithGeminiCLI() {
+    // First, try Antigravity (Google AI Pro subscribers get enhanced benefits here)
     if (this.syncWithAntigravity()) return;
 
+    // Then try Gemini CLI
     try {
       const manager = new UserAccountManager();
       const email = manager.getCachedGoogleAccount();
@@ -102,20 +283,25 @@ const userStore = {
         };
         this.users.set(email, user);
         this.activeEmail = email;
-      } else {
-        this.setupGuest();
+        return;
       }
     } catch (_error) {
-      this.setupGuest();
+      console.warn('[Auth] Gemini CLI sync error');
     }
+
+    // If both fail, setup guest
+    this.setupGuest();
   },
 
   setupGuest() {
     console.log('[Auth] Defaulting to Guest Mode.');
+    const osUser = process.env.USER || 'Guest';
+    const name = osUser.charAt(0).toUpperCase() + osUser.slice(1);
+
     const guestUser: User = {
-      name: 'Guest User',
-      email: 'guest@example.com',
-      avatar: 'https://ui-avatars.com/api/?name=Guest+User',
+      name: name,
+      email: `${osUser}@localhost`,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
       apiKey: '',
     };
     this.users.set(guestUser.email, guestUser);
@@ -163,6 +349,133 @@ app.get('/api/users', (req: Request, res: Response) => {
   res.json(users);
 });
 
+// --- Models ---
+app.get('/api/models', async (req: Request, res: Response) => {
+  // 1. Try to get models from Antigravity Server via Usage Status
+  let subscriptionModels: any[] = [];
+  let useSubscriptionOnly = false;
+
+  if (agServer) {
+    for (const port of agServer.ports) {
+      try {
+        const url = `http://localhost:${port}/exa.language_server_pb.LanguageServerService/GetUserStatus`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Codeium-Csrf-Token': agServer.token,
+          },
+          body: JSON.stringify({
+            metadata: { ideName: 'antigravity' },
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Strictly map from userStatus.cascadeModelConfigData.clientModelConfigs
+          const configs =
+            data.userStatus?.cascadeModelConfigData?.clientModelConfigs;
+          if (configs && Array.isArray(configs)) {
+            subscriptionModels = configs.map((m: any) => ({
+              id: m.label,
+              name: m.label,
+              subscription: true,
+            }));
+            useSubscriptionOnly = true;
+          }
+          break;
+        }
+      } catch (e) {
+        /* continue */
+      }
+    }
+  }
+
+  // 2. Fallback models (Generic SDK aliases) - Only if not using subscription
+  let fallbackModels: any[] = [];
+  if (!useSubscriptionOnly) {
+    const aliases = (DEFAULT_MODEL_CONFIGS as any)?.aliases || {};
+    fallbackModels = Object.entries(aliases)
+      .filter(([alias, config]) => {
+        const id = (config as any).modelConfig?.model;
+        return (
+          id &&
+          (id.startsWith('gemini') ||
+            id.startsWith('claude') ||
+            id.startsWith('gpt'))
+        );
+      })
+      .map(([alias, config]) => ({
+        id: alias,
+        name: getDisplayString(alias),
+      }));
+  }
+
+  const models = [
+    { id: 'auto', name: 'Auto (Recommended)' },
+    ...subscriptionModels,
+    ...fallbackModels,
+  ];
+
+  // De-duplicate by ID
+  const seen = new Set();
+  const uniqueModels = models.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+
+  res.json(uniqueModels);
+});
+
+// --- Providers ---
+app.get('/api/providers', (req: Request, res: Response) => {
+  // Providers supported by the current SDK version
+  const providers = [
+    { id: 'gemini', name: 'Google Gemini' },
+    { id: 'anthropic', name: 'Anthropic Claude' },
+  ];
+  res.json(providers);
+});
+
+// --- Usage ---
+app.get('/api/usage', async (req: Request, res: Response) => {
+  if (!agServer) discoverAntigravityServer();
+  if (!agServer)
+    return res.status(503).json({ error: 'Antigravity server not found' });
+
+  for (const port of agServer.ports) {
+    try {
+      const url = `http://localhost:${port}/exa.language_server_pb.LanguageServerService/GetUserStatus`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Codeium-Csrf-Token': agServer.token,
+        },
+        body: JSON.stringify({
+          metadata: { ideName: 'antigravity' },
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return res.json(data);
+      }
+    } catch (e: any) {
+      // Try next port
+    }
+  }
+
+  // If we reach here, all ports failed or returned non-200
+  agServer = null; // force rediscovery next time
+  res
+    .status(502)
+    .json({
+      error: 'Failed to reach Antigravity usage API on all known ports',
+    });
+});
+
 // --- Agents ---
 app.get('/api/agents', (req: Request, res: Response) => {
   res.json(board.getAgents());
@@ -173,12 +486,48 @@ app.post('/api/agents', (req: Request, res: Response) => {
   if (!name) {
     return res.status(400).json({ error: 'Name is required' });
   }
+
+  // Use the active user's API key (from Antigravity/Google AI Pro) if not explicitly provided
+  const activeUser = userStore.getActiveUser();
+  const effectiveApiKey = apiKey || activeUser?.apiKey || '';
+
+  if (effectiveApiKey) {
+    console.log(`[Agent] Using API key from ${activeUser?.email || 'request'}`);
+  }
+
   const agent = board.spawnAgent(name, {
-    provider: provider || 'gemini',
-    model: model || 'gemini-1.5-pro',
-    apiKey,
+    provider: provider || 'gemini-cli',
+    model: model || 'auto',
+    apiKey: effectiveApiKey,
   });
   res.status(201).json(agent);
+});
+
+app.patch('/api/agents/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updates = req.body;
+  const agent = board.updateAgent(id, updates);
+  if (!agent) {
+    return res.status(404).json({ error: 'Agent not found' });
+  }
+  res.json(agent);
+});
+
+app.delete('/api/agents/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  // Stop loop if active
+  const loop = activeLoops.get(id);
+  if (loop) {
+    await loop.stop();
+    activeLoops.delete(id);
+  }
+
+  if (board.removeAgent(id)) {
+    res.json({ status: 'ok', message: 'Agent removed' });
+  } else {
+    res.status(404).json({ error: 'Agent not found' });
+  }
 });
 
 app.post('/api/agents/:id/start', async (req: Request, res: Response) => {
@@ -267,7 +616,7 @@ app.post('/api/tasks', (req: Request, res: Response) => {
 
 app.put('/api/tasks/:id', (req: Request, res: Response) => {
   const { id } = req.params;
-  const { status, dependencyId } = req.body;
+  const { status, dependencyId, result, artifacts, progress } = req.body;
 
   const task = board.getTask(id);
   if (!task) {
@@ -275,7 +624,7 @@ app.put('/api/tasks/:id', (req: Request, res: Response) => {
   }
 
   if (status) {
-    board.updateTaskStatus(id, status);
+    board.updateTaskStatus(id, status, undefined, result);
   }
 
   if (dependencyId) {
@@ -287,6 +636,24 @@ app.put('/api/tasks/:id', (req: Request, res: Response) => {
   }
 
   res.json(board.getTask(id));
+});
+
+app.delete('/api/tasks/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (board.deleteTask(id)) {
+    res.json({ status: 'ok', message: 'Task deleted' });
+  } else {
+    res.status(404).json({ error: 'Task not found' });
+  }
+});
+
+app.patch('/api/tasks/:id/archive', (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (board.archiveTask(id)) {
+    res.json({ status: 'ok', message: 'Task archived' });
+  } else {
+    res.status(404).json({ error: 'Task not found' });
+  }
 });
 
 // --- Memory ---
@@ -348,5 +715,6 @@ if (require.main === module) {
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`API Docs available at http://localhost:${port}/api-docs`);
+    bootstrapAgentLoops();
   });
 }
